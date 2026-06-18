@@ -87,7 +87,6 @@ class BookingRecord {
     final imageUrl = ApiConfig.resolveMediaUrl(listing['main_image_url'] as String?);
     final checkInRaw = json['check_in_date'] as String? ?? '';
     final checkOutRaw = json['check_out_date'] as String? ?? '';
-    final statusRaw = (json['status'] as String? ?? json['raw_status'] as String? ?? 'pending').toLowerCase();
     final guests = json['total_guests'] as int? ?? 1;
     final payment = json['payment'] as Map<String, dynamic>?;
     final checkIn = DateTime.parse(checkInRaw);
@@ -101,7 +100,7 @@ class BookingRecord {
       unitLabel: listing['location'] as String? ?? 'Unit',
       checkIn: checkIn.copyWith(hour: 15),
       checkOut: checkOut.copyWith(hour: 11),
-      status: _statusFromApi(statusRaw),
+      status: _statusFromApi(_resolveBookingStatusRaw(json)),
       galleryImageUrls: imageUrl.isNotEmpty ? [imageUrl] : const [],
       rating: 0,
       address: listing['location'] as String? ?? '',
@@ -159,7 +158,6 @@ class BookingRecord {
     final imageUrl = ApiConfig.resolveMediaUrl(listing['main_image_url'] as String?);
     final checkInRaw = json['check_in_date'] as String? ?? '';
     final checkOutRaw = json['check_out_date'] as String? ?? '';
-    final statusRaw = (json['status'] as String? ?? 'pending').toLowerCase();
     final guests = json['total_guests'] as int? ?? 1;
     final payment = json['payment'] as Map<String, dynamic>?;
     final client = json['client'] as Map<String, dynamic>? ?? {};
@@ -174,7 +172,7 @@ class BookingRecord {
       unitLabel: listing['location'] as String? ?? '',
       checkIn: DateTime.parse(checkInRaw).copyWith(hour: 15),
       checkOut: DateTime.parse(checkOutRaw).copyWith(hour: 11),
-      status: _statusFromApi(statusRaw),
+      status: _statusFromApi(_resolveBookingStatusRaw(json)),
       galleryImageUrls: imageUrl.isNotEmpty ? [imageUrl] : const [],
       rating: 0,
       address: listing['location'] as String? ?? '',
@@ -203,7 +201,9 @@ class BookingRecord {
       unitLabel: json['unitLabel'] as String? ?? '',
       checkIn: DateTime.parse(json['checkIn'] as String),
       checkOut: DateTime.parse(json['checkOut'] as String),
-      status: _statusFromApi(json['status'] as String? ?? 'pending'),
+      status: _statusFromApi(
+        json['rawStatus'] as String? ?? json['status'] as String? ?? 'pending',
+      ),
       galleryImageUrls: (json['galleryImageUrls'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())
           .toList(),
@@ -234,6 +234,7 @@ class BookingRecord {
         'checkIn': checkIn.toIso8601String(),
         'checkOut': checkOut.toIso8601String(),
         'status': status.name,
+        'rawStatus': _rawStatusFromEnum(status),
         'galleryImageUrls': galleryImageUrls,
         'rating': rating,
         'address': address,
@@ -253,6 +254,43 @@ class BookingRecord {
         'notes': notes,
       };
 
+  static String _resolveBookingStatusRaw(Map<String, dynamic> json) {
+    final status = json['status']?.toString().toLowerCase().trim();
+    final raw = json['raw_status']?.toString().toLowerCase().trim();
+    final bookingStatus = json['booking_status']?.toString().toLowerCase().trim();
+
+    // Trust mapped terminal states from the API first.
+    if (status == 'cancelled' || status == 'canceled') return 'cancelled';
+    if (status == 'completed') return 'completed';
+    if (status == 'booked') return 'confirmed';
+
+    if (raw == 'cancelled' || raw == 'canceled') return 'cancelled';
+    if (raw == 'completed') return 'completed';
+    if (raw == 'confirmed') return 'confirmed';
+
+    if (bookingStatus == 'cancelled' || bookingStatus == 'canceled') return 'cancelled';
+    if (bookingStatus == 'completed') return 'completed';
+    if (bookingStatus == 'confirmed') return 'confirmed';
+
+    if (raw != null && raw.isNotEmpty) return raw;
+    if (bookingStatus != null && bookingStatus.isNotEmpty) return bookingStatus;
+    if (status != null && status.isNotEmpty) return status;
+    return 'pending';
+  }
+
+  static String _rawStatusFromEnum(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.booked:
+        return 'confirmed';
+      case BookingStatus.completed:
+        return 'completed';
+      case BookingStatus.cancelled:
+        return 'cancelled';
+      case BookingStatus.pending:
+        return 'penciled';
+    }
+  }
+
   static BookingStatus _statusFromApi(String raw) {
     switch (raw.toLowerCase()) {
       case 'booked':
@@ -261,6 +299,7 @@ class BookingRecord {
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':
+      case 'canceled':
         return BookingStatus.cancelled;
       case 'pending':
       case 'pending-payment':

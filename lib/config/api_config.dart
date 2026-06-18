@@ -13,7 +13,12 @@ class ApiConfig {
   /// Docker compose (`docker compose up`) uses **3001**. Match this to your running backend.
   static const int port = 3001;
 
+  /// Rewards service (`kelseybackend/rewards`) default port.
+  static const int rewardsPort = 3002;
+
   static String get baseUrl => 'http://$host:$port';
+
+  static String get rewardsBaseUrl => 'http://$host:$rewardsPort';
 
   static String get authLoginUrl => '$baseUrl/api/auth/login';
 
@@ -33,6 +38,14 @@ class ApiConfig {
       '$baseUrl/api/bookings?listingId=${Uri.encodeComponent(unitId)}';
 
   static String bookingUrl(String idOrRef) => '$baseUrl/api/bookings/$idOrRef';
+
+  static String get bookingsAllUrl => '$baseUrl/api/bookings/all';
+
+  static String bookingConfirmUrl(String id) => '$baseUrl/api/bookings/$id/confirm';
+
+  static String bookingDeclineUrl(String id) => '$baseUrl/api/bookings/$id/decline';
+
+  static String get rewardsMeUrl => '$rewardsBaseUrl/api/rewards/me';
 
   /// Relative paths and backend `localhost:PORT/...` URLs → app [baseUrl].
   static String resolveMediaUrl(String? url) {

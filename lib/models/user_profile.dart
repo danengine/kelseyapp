@@ -44,6 +44,12 @@ class UserProfile {
     return roles.join(', ');
   }
 
+  bool get isAdmin => roles.any((role) => role.toLowerCase() == 'admin');
+
+  bool get isAgent => roles.any((role) => role.toLowerCase() == 'agent');
+
+  bool get canAccessRewards => isAgent || isAdmin;
+
   String get avatarInitial {
     final trimmedFirst = firstName?.trim();
     if (trimmedFirst != null && trimmedFirst.isNotEmpty) {

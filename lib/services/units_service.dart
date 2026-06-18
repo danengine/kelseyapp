@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../config/api_config.dart';
 import '../models/unit_listing.dart';
+import '../utils/haversine.dart';
 import 'auth_service.dart';
 
 class UnitsService {
@@ -84,16 +85,17 @@ class UnitsService {
     );
   }
 
+  /// Sorts units nearest → farthest using the Haversine formula from [userLocation].
   List<UnitListing> sortByDistance(List<UnitListing> units, LatLng userLocation) {
-    const distance = Distance();
     final withDistance = units.map((unit) {
       if (unit.latitude == null || unit.longitude == null) {
         return unit.copyWith(distanceKm: double.infinity);
       }
-      final km = distance.as(
-        LengthUnit.Kilometer,
-        userLocation,
-        LatLng(unit.latitude!, unit.longitude!),
+      final km = HaversineDistance.distanceKm(
+        lat1: userLocation.latitude,
+        lon1: userLocation.longitude,
+        lat2: unit.latitude!,
+        lon2: unit.longitude!,
       );
       return unit.copyWith(distanceKm: km);
     }).toList();

@@ -13,7 +13,7 @@ import 'services/units_service.dart';
 import 'unit_detail_screen.dart';
 import 'utils/map_navigation.dart';
 
-/// Map of available units from kelseybackend with optional user location.
+/// Map of available units using OpenStreetMap, sorted nearest → farthest via Haversine.
 class NearbyCondosMapScreen extends StatefulWidget {
   const NearbyCondosMapScreen({super.key});
 
@@ -35,13 +35,31 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
   bool _loadingLocation = true;
   String? _locationNotice;
 
+  bool _mapReady = false;
+  bool _pendingFit = false;
+
   List<UnitListing> get _sortedUnits {
     if (_userLocation == null) return _units;
     return _unitsService.sortByDistance(_units, _userLocation!);
   }
 
-  bool _mapReady = false;
-  bool _pendingFit = false;
+  List<UnitListing> get _mappableUnits =>
+      _sortedUnits.where((u) => u.latitude != null && u.longitude != null).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUnits();
+      _loadUserLocation();
+    });
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
 
   void _scheduleFitMap() {
     _pendingFit = true;
@@ -59,7 +77,6 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
         _fitMapToCondos();
       }
     } catch (_) {
-      // Map controller may not be ready on the first frame — retry once.
       _pendingFit = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_pendingFit) return;
@@ -78,18 +95,6 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
   void _onMapReady() {
     _mapReady = true;
     _applyPendingFit();
-  }
-
-  List<UnitListing> get _mappableUnits =>
-      _sortedUnits.where((u) => u.latitude != null && u.longitude != null).toList();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadUnits();
-      _loadUserLocation();
-    });
   }
 
   Future<void> _loadUnits() async {
@@ -187,7 +192,7 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
   }
 
   void _fitMapToAll() {
-    final points = [
+    final points = <LatLng>[
       ..._mappableUnits.map((u) => LatLng(u.latitude!, u.longitude!)),
       ?_userLocation,
     ];
@@ -214,6 +219,11 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
     }
   }
 
+  void _focusUnit(UnitListing unit) {
+    if (unit.latitude == null || unit.longitude == null) return;
+    _mapController.move(LatLng(unit.latitude!, unit.longitude!), 15);
+  }
+
   LatLng get _initialCenter {
     if (_userLocation != null) return _userLocation!;
     if (_mappableUnits.isNotEmpty) {
@@ -228,6 +238,7 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
     final textTheme = Theme.of(context).textTheme;
     final units = _sortedUnits;
     final isLoading = _loadingUnits || _loadingLocation;
+    final hasLocationSort = _userLocation != null;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -348,6 +359,16 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
                                     message: _locationNotice!,
                                   ),
                                 ),
+                              if (hasLocationSort && !_loadingLocation && _locationNotice == null)
+                                const Positioned(
+                                  top: 16,
+                                  left: 16,
+                                  child: _MapStatusBanner(
+                                    icon: Icons.near_me_rounded,
+                                    message: 'Sorted nearest → farthest',
+                                    compact: true,
+                                  ),
+                                ),
                               if (_mappableUnits.isEmpty)
                                 const Positioned(
                                   top: 16,
@@ -398,7 +419,7 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                                   child: Text(
-                                    _userLocation == null ? 'Available stays' : 'Sorted by distance',
+                                    hasLocationSort ? 'Nearest stays' : 'Available stays',
                                     style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ),
@@ -410,6 +431,9 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
                                     itemBuilder: (context, index) {
                                       final unit = units[index];
                                       return _UnitMapListTile(
+                                        rank: hasLocationSort && unit.distanceKm != null && unit.distanceKm!.isFinite
+                                            ? index + 1
+                                            : null,
                                         unit: unit,
                                         onTap: () {
                                           Navigator.of(context).push<void>(
@@ -418,6 +442,9 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
                                             ),
                                           );
                                         },
+                                        onFocusMap: unit.latitude != null && unit.longitude != null
+                                            ? () => _focusUnit(unit)
+                                            : null,
                                         onOpenMaps: unit.latitude != null && unit.longitude != null
                                             ? () => _openInMaps(unit)
                                             : null,
@@ -439,11 +466,15 @@ class _UnitMapListTile extends StatelessWidget {
   const _UnitMapListTile({
     required this.unit,
     required this.onTap,
+    this.rank,
+    this.onFocusMap,
     this.onOpenMaps,
   });
 
   final UnitListing unit;
   final VoidCallback onTap;
+  final int? rank;
+  final VoidCallback? onFocusMap;
   final VoidCallback? onOpenMaps;
 
   @override
@@ -463,6 +494,20 @@ class _UnitMapListTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
+              if (rank != null) ...[
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: KelseyColors.tealButton,
+                  child: Text(
+                    '$rank',
+                    style: textTheme.labelLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: unit.mainImageUrl.isEmpty
@@ -514,11 +559,19 @@ class _UnitMapListTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onFocusMap != null)
+                IconButton(
+                  tooltip: 'Show on map',
+                  onPressed: onFocusMap,
+                  icon: const Icon(Icons.place_outlined),
+                  color: KelseyColors.tealButton,
+                ),
               if (onOpenMaps != null)
                 IconButton(
                   tooltip: Platform.isIOS ? 'Open in Apple Maps' : 'Open in Maps',
                   onPressed: onOpenMaps,
                   icon: Icon(Platform.isIOS ? Icons.map_outlined : Icons.map_rounded),
+                  color: KelseyColors.tealButton,
                 ),
             ],
           ),
@@ -553,10 +606,15 @@ class _ErrorBody extends StatelessWidget {
 }
 
 class _MapStatusBanner extends StatelessWidget {
-  const _MapStatusBanner({required this.icon, required this.message});
+  const _MapStatusBanner({
+    required this.icon,
+    required this.message,
+    this.compact = false,
+  });
 
   final IconData icon;
   final String message;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -566,17 +624,24 @@ class _MapStatusBanner extends StatelessWidget {
       shadowColor: Colors.black26,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14, vertical: compact ? 8 : 10),
         child: Row(
+          mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
           children: [
             Icon(icon, size: 18, color: KelseyColors.tealButton),
             const SizedBox(width: 10),
-            Expanded(
-              child: Text(
+            if (compact)
+              Text(
                 message,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+              )
+            else
+              Expanded(
+                child: Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
           ],
         ),
       ),

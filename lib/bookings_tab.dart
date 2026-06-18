@@ -46,30 +46,26 @@ class BookingsTabState extends State<BookingsTab> {
         _bookings = bookings;
         _loading = false;
         _offline = false;
+        _error = null;
       });
     } catch (e) {
-      final cached = await BookingsCache.load();
       if (!mounted) return;
 
-      if (isOfflineError(e) && cached.isNotEmpty) {
+      if (isOfflineError(e)) {
+        final cached = await BookingsCache.load();
         setState(() {
           _bookings = cached;
           _loading = false;
           _offline = true;
-          _error = null;
+          _error = cached.isEmpty ? 'You are offline.' : null;
         });
         return;
       }
 
       setState(() {
-        _bookings = cached;
         _loading = false;
-        _offline = isOfflineError(e);
-        _error = e is AuthException
-            ? e.message
-            : isOfflineError(e)
-                ? 'You are offline.'
-                : 'Could not load bookings.';
+        _offline = false;
+        _error = e is AuthException ? e.message : 'Could not load bookings.';
       });
     }
   }
@@ -96,6 +92,17 @@ class BookingsTabState extends State<BookingsTab> {
     final outDate = DateTime(b.checkOut.year, b.checkOut.month, b.checkOut.day);
     final days = outDate.difference(inDate).inDays;
     return days < 1 ? 1 : days;
+  }
+
+  Future<void> _openBookingDetail(BookingRecord booking) async {
+    await Navigator.of(context).push<BookingRecord>(
+      MaterialPageRoute<BookingRecord>(
+        builder: (_) => BookingDetailScreen(booking: booking),
+      ),
+    );
+
+    if (!mounted) return;
+    await _loadBookings();
   }
 
   @override
@@ -184,6 +191,7 @@ class BookingsTabState extends State<BookingsTab> {
                                     formatStayDate: _formatStayDate,
                                     formatStayTime: _formatStayTime,
                                     nightCount: _nightCount(b),
+                                    onTap: () => _openBookingDetail(b),
                                   ),
                                 ),
                               ),
@@ -202,12 +210,14 @@ class _BookingCard extends StatelessWidget {
     required this.formatStayDate,
     required this.formatStayTime,
     required this.nightCount,
+    required this.onTap,
   });
 
   final BookingRecord booking;
   final String Function(DateTime) formatStayDate;
   final String Function(DateTime) formatStayTime;
   final int nightCount;
+  final VoidCallback onTap;
 
   ({String label, Color onImageBg, Color onImageFg}) _statusStyle(BookingStatus s, ColorScheme scheme) {
     switch (s) {
@@ -246,13 +256,7 @@ class _BookingCard extends StatelessWidget {
     final nightsLabel = nightCount == 1 ? '1 night' : '$nightCount nights';
 
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
-            builder: (_) => BookingDetailScreen(booking: booking),
-          ),
-        );
-      },
+      onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Material(
         color: scheme.surface,

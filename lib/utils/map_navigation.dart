@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:url_launcher/url_launcher.dart';
 
-/// Opens the property location in Apple Maps (iOS) or Google Maps.
+/// Opens the property location in Apple Maps (iOS) or Google Maps (Android).
 Future<bool> openLocationInMaps({
   required double latitude,
   required double longitude,
@@ -11,12 +11,26 @@ Future<bool> openLocationInMaps({
   if (latitude == 0 && longitude == 0) return false;
 
   final encodedLabel = Uri.encodeComponent(label);
-  final uri = Platform.isIOS
-      ? Uri.parse('https://maps.apple.com/?ll=$latitude,$longitude&q=$encodedLabel')
-      : Uri.parse('https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
+  final candidates = Platform.isIOS
+      ? <Uri>[
+          Uri.parse('maps://?ll=$latitude,$longitude&q=$encodedLabel'),
+          Uri.parse('https://maps.apple.com/?ll=$latitude,$longitude&q=$encodedLabel'),
+        ]
+      : <Uri>[
+          Uri.parse('geo:$latitude,$longitude?q=$latitude,$longitude($encodedLabel)'),
+          Uri.parse('https://www.google.com/maps/search/?api=1&query=$latitude,$longitude'),
+        ];
 
-  if (!await canLaunchUrl(uri)) return false;
-  return launchUrl(uri, mode: LaunchMode.externalApplication);
+  for (final uri in candidates) {
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (launched) return true;
+    } catch (_) {
+      // Try the next URL scheme.
+    }
+  }
+
+  return false;
 }
 
 bool hasMapCoordinates(double latitude, double longitude) {

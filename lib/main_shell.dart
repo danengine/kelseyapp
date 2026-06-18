@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 
+import 'admin_bookings_tab.dart';
 import 'bookings_tab.dart';
 import 'home_tab.dart';
+import 'kelsey_chat_screen.dart';
 import 'kelsey_brand.dart';
 import 'login_screen.dart';
 import 'services/auth_session.dart';
 import 'services/auth_storage.dart';
 import 'services/bookings_cache.dart';
 
-/// Logged-in area with bottom navigation: Home, Bookings, Profile.
+import 'facebook_posts_screen.dart';
+import 'rewards_screen.dart';
+
+/// Logged-in area with bottom navigation: Home, Bookings, [Manage], Profile.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -19,22 +24,36 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
   final GlobalKey<BookingsTabState> _bookingsTabKey = GlobalKey<BookingsTabState>();
+  final GlobalKey<AdminBookingsTabState> _adminBookingsTabKey = GlobalKey<AdminBookingsTabState>();
 
-  late final List<Widget> _pages;
+  bool get _isAdmin => AuthSession.profile?.isAdmin ?? false;
 
-  @override
-  void initState() {
-    super.initState();
-    _pages = [
-      const HomeTab(),
-      BookingsTab(key: _bookingsTabKey),
-      const _ProfileTab(),
-    ];
+  int get _profileIndex => _isAdmin ? 3 : 2;
+
+  int get _bookingsIndex => 1;
+
+  int? get _manageIndex => _isAdmin ? 2 : null;
+
+  void _onTabSelected(int index) {
+    setState(() => _index = index);
+    if (index == _bookingsIndex) {
+      _bookingsTabKey.currentState?.reload();
+    } else if (_manageIndex != null && index == _manageIndex) {
+      _adminBookingsTabKey.currentState?.reload();
+    }
+  }
+
+  Widget _pageAt(int index) {
+    if (index == 0) return const HomeTab();
+    if (index == _bookingsIndex) return BookingsTab(key: _bookingsTabKey);
+    if (_isAdmin && index == 2) return AdminBookingsTab(key: _adminBookingsTabKey);
+    return const _ProfileTab();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final safeIndex = _index.clamp(0, _profileIndex);
 
     return Scaffold(
       body: AnimatedSwitcher(
@@ -42,31 +61,43 @@ class _MainShellState extends State<MainShell> {
         switchInCurve: Curves.easeOut,
         switchOutCurve: Curves.easeIn,
         child: KeyedSubtree(
-          key: ValueKey<int>(_index),
-          child: _pages[_index],
+          key: ValueKey<int>(safeIndex),
+          child: _pageAt(safeIndex),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: KelseyChatLauncherButton(
+          onTap: () {
+            Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(builder: (_) => const KelseyChatScreen()),
+            );
+          },
         ),
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) {
-          setState(() => _index = i);
-          if (i == 1) {
-            _bookingsTabKey.currentState?.reload();
-          }
-        },
+        selectedIndex: safeIndex,
+        onDestinationSelected: _onTabSelected,
         indicatorColor: scheme.primaryContainer,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
             label: 'Home',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
             selectedIcon: Icon(Icons.calendar_month_rounded),
             label: 'Bookings',
           ),
-          NavigationDestination(
+          if (_isAdmin)
+            const NavigationDestination(
+              icon: Icon(Icons.admin_panel_settings_outlined),
+              selectedIcon: Icon(Icons.admin_panel_settings_rounded),
+              label: 'Manage',
+            ),
+          const NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),
             label: 'Profile',
@@ -89,6 +120,8 @@ class _ProfileTab extends StatelessWidget {
     final role = profile?.roleLabel ?? 'Guest';
     final email = profile?.email ?? '';
     final initial = profile?.avatarInitial ?? '?';
+    final isAdmin = profile?.isAdmin ?? false;
+    final canAccessRewards = profile?.canAccessRewards ?? false;
 
     return CustomScrollView(
       slivers: [
@@ -145,20 +178,59 @@ class _ProfileTab extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 28),
+              ProfileChatEntryCard(
+                onTap: () {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const KelseyChatScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Account',
+                style: textTheme.labelLarge?.copyWith(
+                  color: KelseyColors.cardMuted,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (isAdmin) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.facebook_rounded, color: Color(0xFF1877F2)),
+                  title: const Text('Facebook posts'),
+                  trailing: Icon(Icons.chevron_right_rounded, color: KelseyColors.cardMuted),
+                  onTap: () {
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(builder: (_) => const FacebookPostsScreen()),
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.card_giftcard_rounded, color: KelseyColors.tealButton),
                 title: const Text('Rewards'),
-                trailing: Text(
-                  'Coming soon',
-                  style: textTheme.labelMedium?.copyWith(
-                    color: KelseyColors.cardMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                subtitle: canAccessRewards
+                    ? null
+                    : Text(
+                        'Agents only',
+                        style: textTheme.bodySmall?.copyWith(color: KelseyColors.cardMuted),
+                      ),
+                trailing: Icon(Icons.chevron_right_rounded, color: KelseyColors.cardMuted),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Rewards — coming soon.')),
+                  if (!canAccessRewards) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Rewards Hub is available for agents and admins.'),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const RewardsScreen()),
                   );
                 },
               ),

@@ -149,7 +149,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final total = b.totalAmount ?? (b.pricePerNight * b.stayNights);
     final hasMap = hasMapCoordinates(b.latitude, b.longitude);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).pop(_detail);
+      },
+      child: Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         fit: StackFit.expand,
@@ -479,7 +485,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             left: 16,
             child: _RoundIconButton(
               icon: Icons.arrow_back_ios_new_rounded,
-              onTap: () => Navigator.of(context).maybePop(),
+              onTap: () => Navigator.of(context).pop(_detail),
             ),
           ),
           Positioned(
@@ -489,6 +495,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             child: _BookingTotalFooter(totalAmount: total),
           ),
         ],
+      ),
       ),
     );
   }

@@ -8,6 +8,11 @@
 	<string>Use Face ID to sign in to your Kelsey's Homestay account.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Show condos and homestays near your current location on the map.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>maps</string>
+		<string>comgooglemaps</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
