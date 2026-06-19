@@ -11,10 +11,21 @@ import 'auth_service.dart';
 class UnitsService {
   const UnitsService();
 
-  Future<List<UnitListing>> fetchUnits({String? search}) async {
-    final query = <String, String>{'limit': '50'};
+  Future<List<UnitListing>> fetchUnits({
+    String? search,
+    String? city,
+    bool? featured,
+    int limit = 50,
+  }) async {
+    final query = <String, String>{'limit': '$limit'};
     if (search != null && search.trim().isNotEmpty) {
       query['search'] = search.trim();
+    }
+    if (city != null && city.trim().isNotEmpty) {
+      query['city'] = city.trim();
+    }
+    if (featured == true) {
+      query['featured'] = 'true';
     }
 
     final uri = Uri.parse(ApiConfig.unitsUrl).replace(queryParameters: query);
@@ -82,6 +93,8 @@ class UnitsService {
       maxCapacity: listing.maxCapacity,
       checkInTime: body['check_in_time'] as String? ?? listing.checkInTime,
       checkOutTime: body['check_out_time'] as String? ?? listing.checkOutTime,
+      amenities: listing.amenities,
+      squareFeet: listing.squareFeet,
     );
   }
 

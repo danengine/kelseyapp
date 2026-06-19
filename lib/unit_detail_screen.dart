@@ -12,8 +12,15 @@ import 'kelsey_brand.dart';
 import 'models/unit_listing.dart';
 import 'utils/currency_utils.dart';
 import 'utils/map_navigation.dart';
+import 'widgets/unit_gallery_viewer.dart';
 
-/// Detail view for a homestay unit from the backend.
+const _detailTeal = KelseyColors.adminTeal;
+const _surface = KelseyColors.adminSurface;
+const _border = Color(0xFFF3F4F6);
+const _textPrimary = Color(0xFF111827);
+const _textMuted = Color(0xFF6B7280);
+
+/// Detail view for a homestay unit — matches home / web unit page styling.
 class UnitDetailScreen extends StatefulWidget {
   const UnitDetailScreen({super.key, required this.unit});
 
@@ -29,6 +36,12 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
   List<String> _galleryUrls = [];
 
   UnitListing get u => widget.unit;
+
+  String get _propertyTypeLabel {
+    if (u.propertyType.isEmpty) return 'Property';
+    final t = u.propertyType;
+    return t[0].toUpperCase() + t.substring(1);
+  }
 
   @override
   void initState() {
@@ -46,7 +59,10 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
       final images = body['image_urls'];
       if (images is! List || images.isEmpty) return;
       setState(() {
-        _galleryUrls = images.map((e) => ApiConfig.resolveMediaUrl(e.toString())).where((url) => url.isNotEmpty).toList();
+        _galleryUrls = images
+            .map((e) => ApiConfig.resolveMediaUrl(e.toString()))
+            .where((url) => url.isNotEmpty)
+            .toList();
       });
     } catch (_) {
       // keep fallback image
@@ -58,11 +74,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
     final lng = u.longitude;
     if (lat == null || lng == null) return;
 
-    final opened = await openLocationInMaps(
-      latitude: lat,
-      longitude: lng,
-      label: u.title,
-    );
+    final opened = await openLocationInMaps(latitude: lat, longitude: lng, label: u.title);
     if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open maps for this location.')),
@@ -82,26 +94,37 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
     final top = MediaQuery.paddingOf(context).top;
     final urls = _galleryUrls;
     final latLng = u.latitude != null && u.longitude != null ? LatLng(u.latitude!, u.longitude!) : null;
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: KelseyColors.background,
+      backgroundColor: _surface,
       body: Stack(
-        fit: StackFit.expand,
         children: [
           CustomScrollView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
             slivers: [
-              SliverToBoxAdapter(child: _HeroGallery(urls: urls, pageController: _pageController, photoIndex: _photoIndex, onPageChanged: (i) => setState(() => _photoIndex = i))),
               SliverToBoxAdapter(
-                child: Transform.translate(
-                  offset: const Offset(0, -12),
-                  child: Material(
-                    color: Colors.white,
-                    elevation: 8,
-                    shadowColor: Colors.black26,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                    clipBehavior: Clip.antiAlias,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 36, 22, 0),
+                child: _HeroGallery(
+                  urls: urls,
+                  pageController: _pageController,
+                  photoIndex: _photoIndex,
+                  propertyTypeLabel: _propertyTypeLabel,
+                  onPageChanged: (i) => setState(() => _photoIndex = i),
+                  onOpenFullscreen: urls.isEmpty
+                      ? null
+                      : () => UnitGalleryViewer.open(
+                            context,
+                            urls: urls,
+                            initialIndex: _photoIndex,
+                            title: u.title,
+                          ),
+                ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
+                sliver: SliverList.list(
+                  children: [
+                    _DetailCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -113,8 +136,9 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                                   u.title,
                                   style: textTheme.headlineSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    color: Colors.black87,
-                                    height: 1.15,
+                                    color: _textPrimary,
+                                    height: 1.2,
+                                    letterSpacing: -0.3,
                                   ),
                                 ),
                               ),
@@ -123,45 +147,30 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                   decoration: BoxDecoration(
-                                    color: KelseyColors.yellow.withValues(alpha: 0.35),
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: _detailTeal.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: Text(
+                                  child: const Text(
                                     'Featured',
-                                    style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                                    style: TextStyle(
+                                      color: _detailTeal,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ],
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: KelseyColors.tealButton.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              u.propertyType,
-                              style: textTheme.labelLarge?.copyWith(
-                                color: KelseyColors.tealButton,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 10),
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.location_on_outlined, size: 20, color: KelseyColors.tealButton),
+                              const Icon(Icons.location_on_outlined, size: 18, color: _textMuted),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   u.locationLabel,
-                                  style: textTheme.bodyLarge?.copyWith(
-                                    color: KelseyColors.cardMuted,
-                                    height: 1.35,
-                                  ),
+                                  style: textTheme.bodyMedium?.copyWith(color: _textMuted, height: 1.35),
                                 ),
                               ),
                             ],
@@ -170,85 +179,149 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                             const SizedBox(height: 6),
                             Text(
                               u.distanceLabel!,
-                              style: textTheme.labelLarge?.copyWith(
-                                color: KelseyColors.tealButton,
+                              style: const TextStyle(
+                                color: _detailTeal,
                                 fontWeight: FontWeight.w700,
+                                fontSize: 13,
                               ),
                             ),
                           ],
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 18),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
                             children: [
-                              Expanded(
-                                child: _FeatureChip(
-                                  icon: Icons.bed_outlined,
-                                  label: '${u.bedrooms} bed${u.bedrooms == 1 ? '' : 's'}',
+                              Text(
+                                CurrencyUtils.formatAmount(u.price, currency: u.currency),
+                                style: textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: _textPrimary,
+                                  letterSpacing: -0.5,
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _FeatureChip(
-                                  icon: Icons.bathtub_outlined,
-                                  label: '${u.bathrooms} bath${u.bathrooms == 1 ? '' : 's'}',
+                              const SizedBox(width: 6),
+                              Text(
+                                '/ night',
+                                style: textTheme.bodyLarge?.copyWith(
+                                  color: _textMuted,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              if (u.maxCapacity != null) ...[
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _FeatureChip(
-                                    icon: Icons.groups_outlined,
-                                    label: 'Up to ${u.maxCapacity}',
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
-                          if (u.checkInTime != null || u.checkOutTime != null) ...[
-                            const SizedBox(height: 18),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _DetailCard(
+                      child: _StatsGrid(unit: u),
+                    ),
+                    if (u.checkInTime != null || u.checkOutTime != null) ...[
+                      const SizedBox(height: 12),
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _CardTitle('Stay duration'),
+                            const SizedBox(height: 12),
                             Row(
                               children: [
                                 if (u.checkInTime != null)
                                   Expanded(
-                                    child: _TimeChip(
-                                      icon: Icons.login_rounded,
+                                    child: _StayTimeTile(
                                       label: 'Check-in',
                                       time: u.checkInTime!,
+                                      icon: Icons.login_rounded,
                                     ),
                                   ),
-                                if (u.checkInTime != null && u.checkOutTime != null) const SizedBox(width: 10),
+                                if (u.checkInTime != null && u.checkOutTime != null)
+                                  Container(
+                                    width: 1,
+                                    height: 48,
+                                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                                    color: const Color(0xFFE5E7EB),
+                                  ),
                                 if (u.checkOutTime != null)
                                   Expanded(
-                                    child: _TimeChip(
-                                      icon: Icons.logout_rounded,
+                                    child: _StayTimeTile(
                                       label: 'Check-out',
                                       time: u.checkOutTime!,
+                                      icon: Icons.logout_rounded,
                                     ),
                                   ),
                               ],
                             ),
                           ],
-                          if (u.description != null && u.description!.isNotEmpty) ...[
-                            const SizedBox(height: 24),
-                            _SectionHeader(title: 'About'),
+                        ),
+                      ),
+                    ],
+                    if (u.description != null && u.description!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _CardTitle('About this place'),
                             const SizedBox(height: 10),
                             Text(
                               u.description!,
-                              style: textTheme.bodyLarge?.copyWith(
-                                color: KelseyColors.cardMuted,
-                                height: 1.45,
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: _textMuted,
+                                height: 1.55,
                               ),
                             ),
                           ],
-                          if (latLng != null) ...[
-                            const SizedBox(height: 24),
-                            _SectionHeader(title: 'Location'),
+                        ),
+                      ),
+                    ],
+                    if (u.amenities.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _CardTitle('Amenities'),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: u.amenities.map((a) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: _surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  ),
+                                  child: Text(
+                                    a,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: _textPrimary,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (latLng != null) ...[
+                      const SizedBox(height: 12),
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _CardTitle('Location'),
                             const SizedBox(height: 12),
                             GestureDetector(
                               onTap: _openInMaps,
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                                 child: SizedBox(
-                                  height: 200,
+                                  height: 180,
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
@@ -272,7 +345,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                                                 width: 40,
                                                 height: 40,
                                                 alignment: Alignment.bottomCenter,
-                                                child: const Icon(Icons.location_on, color: KelseyColors.tealButton, size: 40),
+                                                child: const Icon(Icons.location_on, color: _detailTeal, size: 40),
                                               ),
                                             ],
                                           ),
@@ -282,25 +355,26 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                                         right: 10,
                                         bottom: 10,
                                         child: Material(
-                                          color: Colors.white.withValues(alpha: 0.94),
+                                          color: Colors.white,
                                           borderRadius: BorderRadius.circular(20),
                                           elevation: 2,
                                           child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(
                                                   Platform.isIOS ? Icons.map_outlined : Icons.navigation_rounded,
                                                   size: 16,
-                                                  color: KelseyColors.tealButton,
+                                                  color: _detailTeal,
                                                 ),
-                                                const SizedBox(width: 4),
-                                                Text(
+                                                const SizedBox(width: 6),
+                                                const Text(
                                                   'Navigate',
-                                                  style: textTheme.labelMedium?.copyWith(
-                                                    color: KelseyColors.tealButton,
+                                                  style: TextStyle(
+                                                    color: _detailTeal,
                                                     fontWeight: FontWeight.w700,
+                                                    fontSize: 13,
                                                   ),
                                                 ),
                                               ],
@@ -314,11 +388,46 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                               ),
                             ),
                           ],
-                          SizedBox(height: 120 + MediaQuery.viewPaddingOf(context).bottom),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    _DetailCard(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _detailTeal.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.shield_outlined, color: _detailTeal, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Flexible cancellation',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPrimary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Free cancellation before check-in. After check-in, the reservation is non-refundable.',
+                                  style: TextStyle(color: _textMuted, fontSize: 13, height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -346,147 +455,148 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
   }
 }
 
-class _HeroGallery extends StatelessWidget {
-  const _HeroGallery({
-    required this.urls,
-    required this.pageController,
-    required this.photoIndex,
-    required this.onPageChanged,
-  });
+class _DetailCard extends StatelessWidget {
+  const _DetailCard({required this.child});
 
-  final List<String> urls;
-  final PageController pageController;
-  final int photoIndex;
-  final ValueChanged<int> onPageChanged;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 320,
-      child: urls.isEmpty
-          ? ColoredBox(
-              color: KelseyColors.tealButton.withValues(alpha: 0.25),
-              child: const Center(
-                child: Icon(Icons.night_shelter_outlined, size: 56, color: Colors.white70),
-              ),
-            )
-          : Stack(
-              fit: StackFit.expand,
-              children: [
-                PageView.builder(
-                  controller: pageController,
-                  itemCount: urls.length,
-                  onPageChanged: onPageChanged,
-                  itemBuilder: (context, i) => Image.network(
-                    urls[i],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => ColoredBox(
-                      color: KelseyColors.tealButton.withValues(alpha: 0.25),
-                      child: const Icon(Icons.image_not_supported_outlined, size: 48, color: Colors.white70),
-                    ),
-                  ),
-                ),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        KelseyColors.background.withValues(alpha: 0.45),
-                        Colors.transparent,
-                        KelseyColors.background.withValues(alpha: 0.75),
-                      ],
-                      stops: const [0, 0.45, 1],
-                    ),
-                  ),
-                ),
-                if (urls.length > 1)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 40,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(urls.length, (i) {
-                        final active = i == photoIndex;
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          width: active ? 9 : 6,
-                          height: active ? 9 : 6,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: active ? KelseyColors.yellow : Colors.white.withValues(alpha: 0.45),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-              ],
-            ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+class _CardTitle extends StatelessWidget {
+  const _CardTitle(this.title);
 
   final String title;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 22,
-          decoration: BoxDecoration(
-            color: KelseyColors.yellow,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: Colors.black87,
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
+        color: _textPrimary,
+        letterSpacing: -0.2,
+      ),
     );
   }
 }
 
-class _FeatureChip extends StatelessWidget {
-  const _FeatureChip({required this.icon, required this.label});
+class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({required this.unit});
 
-  final IconData icon;
-  final String label;
+  final UnitListing unit;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final items = <({IconData icon, String label, String value})>[
+      (icon: Icons.bed_outlined, label: 'Bedrooms', value: '${unit.bedrooms}'),
+      (icon: Icons.bathtub_outlined, label: 'Bathrooms', value: '${unit.bathrooms}'),
+      if (unit.squareFeet != null)
+        (icon: Icons.square_foot_outlined, label: 'Sq ft', value: '${unit.squareFeet}'),
+      if (unit.maxCapacity != null)
+        (icon: Icons.groups_outlined, label: 'Guests', value: 'Up to ${unit.maxCapacity}'),
+    ];
+
+    return Row(
+      children: List.generate(items.length, (i) {
+        final item = items[i];
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(left: i == 0 ? 0 : 6),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                Icon(item.icon, size: 20, color: _detailTeal),
+                const SizedBox(height: 6),
+                Text(
+                  item.value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: _textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10, color: _textMuted, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _StayTimeTile extends StatelessWidget {
+  const _StayTimeTile({
+    required this.label,
+    required this.time,
+    required this.icon,
+  });
+
+  final String label;
+  final String time;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: KelseyColors.tealButton.withValues(alpha: 0.08),
+        color: _surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: KelseyColors.tealButton.withValues(alpha: 0.15)),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Icon(icon, size: 22, color: KelseyColors.tealButton),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: KelseyColors.tealButton,
+          Icon(icon, size: 20, color: _detailTeal),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 12, color: _textMuted)),
+                const SizedBox(height: 2),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: _textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -495,49 +605,134 @@ class _FeatureChip extends StatelessWidget {
   }
 }
 
-class _TimeChip extends StatelessWidget {
-  const _TimeChip({
-    required this.icon,
-    required this.label,
-    required this.time,
+class _HeroGallery extends StatelessWidget {
+  const _HeroGallery({
+    required this.urls,
+    required this.pageController,
+    required this.photoIndex,
+    required this.propertyTypeLabel,
+    required this.onPageChanged,
+    this.onOpenFullscreen,
   });
 
-  final IconData icon;
-  final String label;
-  final String time;
+  final List<String> urls;
+  final PageController pageController;
+  final int photoIndex;
+  final String propertyTypeLabel;
+  final ValueChanged<int> onPageChanged;
+  final VoidCallback? onOpenFullscreen;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: KelseyColors.inputBorder),
-      ),
-      child: Row(
+    final top = MediaQuery.paddingOf(context).top;
+
+    return SizedBox(
+      height: 300 + top,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Icon(icon, size: 20, color: KelseyColors.tealButton),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: textTheme.labelMedium?.copyWith(color: KelseyColors.cardMuted),
+          if (urls.isEmpty)
+            ColoredBox(
+              color: _detailTeal.withValues(alpha: 0.08),
+              child: const Center(
+                child: Icon(Icons.night_shelter_outlined, size: 56, color: _detailTeal),
+              ),
+            )
+          else
+            PageView.builder(
+              controller: pageController,
+              itemCount: urls.length,
+              onPageChanged: onPageChanged,
+              itemBuilder: (context, i) => Image.network(
+                urls[i],
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => ColoredBox(
+                  color: _detailTeal.withValues(alpha: 0.08),
+                  child: const Icon(Icons.image_not_supported_outlined, size: 48, color: _detailTeal),
                 ),
-                Text(
-                  time,
-                  style: textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
+              ),
+            ),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.25),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.15),
+                  ],
+                  stops: const [0, 0.5, 1],
                 ),
-              ],
+              ),
             ),
           ),
+          Positioned(
+            top: top + 56,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                propertyTypeLabel,
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          if (urls.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 16,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${photoIndex + 1} / ${urls.length}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (onOpenFullscreen != null) ...[
+                    const SizedBox(width: 8),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onOpenFullscreen,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.fullscreen_rounded, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'Expand',
+                                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -555,15 +750,22 @@ class _BookFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
-    return Material(
-      color: Colors.white,
-      elevation: 12,
-      shadowColor: Colors.black26,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(22, 14, 22, 14 + bottomInset),
+        padding: EdgeInsets.fromLTRB(20, 14, 20, 14 + bottomInset),
         child: Row(
           children: [
             Expanded(
@@ -571,25 +773,25 @@ class _BookFooter extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'From',
-                    style: textTheme.bodySmall?.copyWith(color: KelseyColors.cardMuted),
-                  ),
+                  const Text('From', style: TextStyle(fontSize: 12, color: _textMuted)),
+                  const SizedBox(height: 2),
                   Text.rich(
                     TextSpan(
                       children: [
                         TextSpan(
                           text: priceLabel,
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: KelseyColors.tealButton,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                            color: _detailTeal,
                           ),
                         ),
-                        TextSpan(
+                        const TextSpan(
                           text: ' /night',
-                          style: textTheme.titleMedium?.copyWith(
-                            color: KelseyColors.cardMuted,
+                          style: TextStyle(
                             fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: _textMuted,
                           ),
                         ),
                       ],
@@ -599,19 +801,19 @@ class _BookFooter extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            SizedBox(
-              height: 52,
-              child: FilledButton(
-                onPressed: onBook,
-                style: FilledButton.styleFrom(
-                  backgroundColor: KelseyColors.tealButton,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  shape: const StadiumBorder(),
-                  textStyle: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                child: const Text('Select dates'),
+            FilledButton(
+              onPressed: onBook,
+              style: FilledButton.styleFrom(
+                backgroundColor: _detailTeal,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                minimumSize: const Size(0, 50),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text(
+                'Reserve',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
               ),
             ),
           ],
@@ -630,16 +832,16 @@ class _RoundIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withValues(alpha: 0.94),
-      elevation: 3,
-      shadowColor: Colors.black26,
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
       shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(11),
-          child: Icon(icon, size: 20, color: KelseyColors.tealButton),
+          child: Icon(icon, size: 20, color: _detailTeal),
         ),
       ),
     );

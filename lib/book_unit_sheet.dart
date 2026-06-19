@@ -11,6 +11,12 @@ import 'services/bookings_service.dart';
 import 'services/units_service.dart';
 import 'utils/currency_utils.dart';
 
+const _bookTeal = KelseyColors.adminTeal;
+const _bookSurface = KelseyColors.adminSurface;
+const _bookBorder = Color(0xFFF3F4F6);
+const _textPrimary = Color(0xFF111827);
+const _textMuted = Color(0xFF6B7280);
+
 Future<bool?> openBookUnitFlow(BuildContext context, UnitListing unit) {
   return Navigator.of(context).push<bool>(
     MaterialPageRoute<bool>(
@@ -452,128 +458,154 @@ class _BookUnitScreenState extends State<BookUnitScreen> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
 
     return Stack(
       children: [
         Scaffold(
-      appBar: AppBar(
-        title: Text('Book ${unit.title}'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(36),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Row(
-              children: [
-                _StepChip(label: 'Dates', stepNumber: 1, active: _step == 0, done: _step > 0),
-                _StepDivider(active: _step > 0),
-                _StepChip(label: 'Payment', stepNumber: 2, active: _step == 1, done: _step > 1),
-                _StepDivider(active: _step > 1),
-                _StepChip(label: 'Review', stepNumber: 3, active: _step == 2, done: false),
-              ],
+          backgroundColor: _bookSurface,
+          appBar: AppBar(
+            surfaceTintColor: Colors.transparent,
+            backgroundColor: _bookSurface,
+            foregroundColor: _textPrimary,
+            elevation: 0,
+            title: Text(
+              'Reserve',
+              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: _textPrimary),
             ),
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _DatesStep(
-                  loading: _loadingAvailability,
-                  checkInLabel: _formatDate(_checkIn),
-                  checkInTimeLabel: _checkIn != null ? _formatStayTime(_checkIn!) : _formatTimeOfDay(_checkInTimeOfDay),
-                  checkOutLabel: _formatDate(_checkOut),
-                  checkOutTimeLabel: _checkOut != null ? _formatStayTime(_checkOut!) : _formatTimeOfDay(_checkOutTimeOfDay),
-                  guests: _guests,
-                  maxGuests: _maxGuests,
-                  nights: _nights,
-                  unit: unit,
-                  onPickCheckIn: _pickCheckIn,
-                  onPickCheckOut: _pickCheckOut,
-                  onGuestsChanged: (g) => setState(() => _guests = g),
-                ),
-                _PaymentStep(
-                  paymentMethod: _paymentMethod,
-                  onPaymentMethodChanged: (m) => setState(() => _paymentMethod = m),
-                  gcashNameController: _gcashNameController,
-                  gcashNumberController: _gcashNumberController,
-                  gcashRefController: _gcashRefController,
-                  bankNameController: _bankNameController,
-                  depositorNameController: _depositorNameController,
-                  bankAccountController: _bankAccountController,
-                  notesController: _notesController,
-                ),
-                _ReviewStep(
-                  unit: unit,
-                  checkIn: _checkIn,
-                  checkOut: _checkOut,
-                  guests: _guests,
-                  nights: _nights,
-                  estimatedTotal: _estimatedTotal,
-                  paymentLabel: _paymentLabel(),
-                  agreeTerms: _agreeTerms,
-                  onAgreeChanged: (v) => setState(() => _agreeTerms = v),
-                  formatDateTime: (d, {required fallbackTime}) => _formatDateTime(d, fallbackTime: fallbackTime),
-                  checkInFallbackTime: _checkInTimeOfDay,
-                  checkOutFallbackTime: _checkOutTimeOfDay,
-                ),
-              ],
-            ),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text(
-                _error!,
-                style: textTheme.bodyMedium?.copyWith(color: scheme.error),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(72),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: _BookStepper(currentStep: _step),
               ),
             ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Row(
-                children: [
-                  if (_step > 0)
-                    TextButton(
-                      onPressed: _submitting ? null : () => _goToStep(_step - 1),
-                      child: const Text('Back'),
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _DatesStep(
+                      loading: _loadingAvailability,
+                      checkInLabel: _formatDate(_checkIn),
+                      checkInTimeLabel: _checkIn != null ? _formatStayTime(_checkIn!) : _formatTimeOfDay(_checkInTimeOfDay),
+                      checkOutLabel: _formatDate(_checkOut),
+                      checkOutTimeLabel: _checkOut != null ? _formatStayTime(_checkOut!) : _formatTimeOfDay(_checkOutTimeOfDay),
+                      guests: _guests,
+                      maxGuests: _maxGuests,
+                      nights: _nights,
+                      unit: unit,
+                      onPickCheckIn: _pickCheckIn,
+                      onPickCheckOut: _pickCheckOut,
+                      onGuestsChanged: (g) => setState(() => _guests = g),
                     ),
-                  const Spacer(),
-                  FilledButton(
-                    onPressed: _submitting || _loadingAvailability
-                        ? null
-                        : () {
-                            if (_step == 0) {
-                              _nextFromDates();
-                            } else if (_step == 1) {
-                              _nextFromPayment();
-                            } else {
-                              _submit();
-                            }
-                          },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFE6834B),
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    _PaymentStep(
+                      paymentMethod: _paymentMethod,
+                      onPaymentMethodChanged: (m) => setState(() => _paymentMethod = m),
+                      gcashNameController: _gcashNameController,
+                      gcashNumberController: _gcashNumberController,
+                      gcashRefController: _gcashRefController,
+                      bankNameController: _bankNameController,
+                      depositorNameController: _depositorNameController,
+                      bankAccountController: _bankAccountController,
+                      notesController: _notesController,
                     ),
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-                          )
-                        : Text(_step == 2 ? 'Confirm payment' : 'Continue'),
+                    _ReviewStep(
+                      unit: unit,
+                      checkIn: _checkIn,
+                      checkOut: _checkOut,
+                      guests: _guests,
+                      nights: _nights,
+                      estimatedTotal: _estimatedTotal,
+                      paymentLabel: _paymentLabel(),
+                      agreeTerms: _agreeTerms,
+                      onAgreeChanged: (v) => setState(() => _agreeTerms = v),
+                      formatDateTime: (d, {required fallbackTime}) => _formatDateTime(d, fallbackTime: fallbackTime),
+                      checkInFallbackTime: _checkInTimeOfDay,
+                      checkOutFallbackTime: _checkOutTimeOfDay,
+                    ),
+                  ],
+                ),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Text(
+                      _error!,
+                      style: textTheme.bodyMedium?.copyWith(color: Colors.red.shade800),
+                    ),
                   ),
-                ],
+                ),
+              SafeArea(
+                top: false,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Row(
+                    children: [
+                      if (_step > 0)
+                        OutlinedButton(
+                          onPressed: _submitting ? null : () => _goToStep(_step - 1),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _bookTeal,
+                            side: const BorderSide(color: Color(0xFFE5E7EB)),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Back', style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      if (_step > 0) const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: _submitting || _loadingAvailability
+                              ? null
+                              : () {
+                                  if (_step == 0) {
+                                    _nextFromDates();
+                                  } else if (_step == 1) {
+                                    _nextFromPayment();
+                                  } else {
+                                    _submit();
+                                  }
+                                },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _bookTeal,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _submitting
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                )
+                              : Text(
+                                  _step == 2 ? 'Confirm payment' : 'Continue',
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
         ),
         if (_showSuccessSplash)
           Positioned.fill(
@@ -587,78 +619,156 @@ class _BookUnitScreenState extends State<BookUnitScreen> {
   }
 }
 
-class _StepChip extends StatelessWidget {
-  const _StepChip({
-    required this.label,
-    required this.stepNumber,
-    required this.active,
-    required this.done,
-  });
+class _BookStepper extends StatelessWidget {
+  const _BookStepper({required this.currentStep});
 
-  final String label;
-  final int stepNumber;
-  final bool active;
-  final bool done;
+  final int currentStep;
+
+  static const _steps = ['Dates', 'Payment', 'Review'];
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final activeColor = KelseyColors.tealButton;
-    final inactiveColor = Colors.grey.shade400;
-    final isHighlighted = active || done;
+    return Row(
+      children: List.generate(_steps.length * 2 - 1, (i) {
+        if (i.isOdd) {
+          final stepIndex = i ~/ 2;
+          final done = currentStep > stepIndex;
+          return Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(bottom: 22),
+              decoration: BoxDecoration(
+                color: done ? _bookTeal : const Color(0xFFE5E7EB),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          );
+        }
 
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: isHighlighted ? activeColor : Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: done
-                ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                : Text(
-                    '$stepNumber',
-                    style: textTheme.labelLarge?.copyWith(
-                      color: active ? Colors.white : inactiveColor,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
-                    ),
-                  ),
+        final stepIndex = i ~/ 2;
+        final active = currentStep == stepIndex;
+        final done = currentStep > stepIndex;
+        final highlighted = active || done;
+
+        return Expanded(
+          child: Column(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: highlighted ? _bookTeal : const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: done
+                    ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                    : Text(
+                        '${stepIndex + 1}',
+                        style: TextStyle(
+                          color: active ? Colors.white : _textMuted,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _steps[stepIndex],
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: highlighted ? _bookTeal : _textMuted,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: textTheme.labelSmall?.copyWith(
-              color: isHighlighted ? activeColor : inactiveColor,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+        );
+      }),
     );
   }
 }
 
-class _StepDivider extends StatelessWidget {
-  const _StepDivider({required this.active});
+class _BookCard extends StatelessWidget {
+  const _BookCard({required this.child, this.padding = const EdgeInsets.all(18)});
 
-  final bool active;
+  final Widget child;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        height: 2,
-        margin: const EdgeInsets.only(bottom: 18),
-        color: active ? KelseyColors.tealButton : Colors.grey.shade300,
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _bookBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: child,
     );
   }
+}
+
+class _BookSectionTitle extends StatelessWidget {
+  const _BookSectionTitle(this.title, {this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: _textPrimary,
+            letterSpacing: -0.2,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(subtitle!, style: const TextStyle(fontSize: 13, color: _textMuted)),
+        ],
+      ],
+    );
+  }
+}
+
+InputDecoration _bookInputDecoration(String label, {String? hint}) {
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    labelStyle: const TextStyle(color: _textMuted, fontWeight: FontWeight.w500),
+    floatingLabelStyle: const TextStyle(color: _bookTeal, fontWeight: FontWeight.w600),
+    filled: true,
+    fillColor: _bookSurface,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _bookTeal, width: 1.5),
+    ),
+  );
 }
 
 class _DatesStep extends StatelessWidget {
@@ -692,33 +802,84 @@ class _DatesStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
     final checkInSelected = checkInLabel != 'Select date';
     final checkOutSelected = checkOutLabel != 'Select date';
 
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(color: _bookTeal),
+      );
     }
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        Text(unit.location, style: textTheme.bodyMedium?.copyWith(color: KelseyColors.cardMuted)),
-        const SizedBox(height: 20),
-        Text(
-          'Select your dates',
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 12),
-        Material(
-          color: scheme.surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
+        _BookCard(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: unit.mainImageUrl.isNotEmpty
+                    ? Image.network(
+                        unit.mainImageUrl,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _unitThumbPlaceholder(),
+                      )
+                    : _unitThumbPlaceholder(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      unit.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: _textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, size: 14, color: _textMuted),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            unit.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, color: _textMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      CurrencyUtils.formatPerNight(unit.price, currency: unit.currency),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: _bookTeal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          clipBehavior: Clip.antiAlias,
+        ),
+        const SizedBox(height: 20),
+        const _BookSectionTitle('Select your dates', subtitle: 'Choose check-in and check-out'),
+        const SizedBox(height: 12),
+        _BookCard(
+          padding: EdgeInsets.zero,
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -733,11 +894,7 @@ class _DatesStep extends StatelessWidget {
                     onTap: onPickCheckIn,
                   ),
                 ),
-                VerticalDivider(
-                  width: 1,
-                  thickness: 1,
-                  color: scheme.outlineVariant.withValues(alpha: 0.65),
-                ),
+                const VerticalDivider(width: 1, thickness: 1, color: Color(0xFFE5E7EB)),
                 Expanded(
                   child: _StayDateTile(
                     label: 'Check-out',
@@ -753,53 +910,60 @@ class _DatesStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        Text(
-          'Guests',
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 10),
-        Material(
-          color: scheme.surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                _GuestStepButton(
-                  icon: Icons.remove_rounded,
-                  enabled: guests > 1,
-                  onPressed: () => onGuestsChanged(guests - 1),
+        const _BookSectionTitle('Guests'),
+        const SizedBox(height: 12),
+        _BookCard(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              _GuestStepButton(
+                icon: Icons.remove_rounded,
+                enabled: guests > 1,
+                onPressed: () => onGuestsChanged(guests - 1),
+              ),
+              Expanded(
+                child: Text(
+                  guests == 1 ? '1 guest' : '$guests guests',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: _textPrimary),
                 ),
-                Expanded(
-                  child: Text(
-                    guests == 1 ? '1 guest' : '$guests guests',
-                    textAlign: TextAlign.center,
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                _GuestStepButton(
-                  icon: Icons.add_rounded,
-                  enabled: guests < maxGuests,
-                  onPressed: () => onGuestsChanged(guests + 1),
-                ),
-              ],
-            ),
+              ),
+              _GuestStepButton(
+                icon: Icons.add_rounded,
+                enabled: guests < maxGuests,
+                onPressed: () => onGuestsChanged(guests + 1),
+              ),
+            ],
           ),
         ),
         if (nights > 0) ...[
           const SizedBox(height: 12),
-          Text(
-            '$nights night${nights == 1 ? '' : 's'} · ${CurrencyUtils.formatPerNight(unit.price, currency: unit.currency)}',
-            style: textTheme.bodyMedium?.copyWith(color: KelseyColors.cardMuted),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _bookTeal.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _bookTeal.withValues(alpha: 0.15)),
+            ),
+            child: Text(
+              '$nights night${nights == 1 ? '' : 's'} · ${CurrencyUtils.formatPerNight(unit.price, currency: unit.currency)}',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: _bookTeal),
+            ),
           ),
         ],
       ],
     );
   }
+}
+
+Widget _unitThumbPlaceholder() {
+  return Container(
+    width: 72,
+    height: 72,
+    color: _bookBorder,
+    child: const Icon(Icons.home_outlined, color: _textMuted),
+  );
 }
 
 class _StayDateTile extends StatelessWidget {
@@ -821,13 +985,11 @@ class _StayDateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
           child: Column(
@@ -835,14 +997,15 @@ class _StayDateTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(icon, size: 16, color: KelseyColors.tealButton.withValues(alpha: 0.85)),
+                  Icon(icon, size: 16, color: _bookTeal),
                   const SizedBox(width: 6),
                   Text(
                     label.toUpperCase(),
-                    style: textTheme.labelSmall?.copyWith(
-                      color: KelseyColors.cardMuted,
+                    style: const TextStyle(
+                      color: _textMuted,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.9,
+                      fontSize: 11,
                       height: 1,
                     ),
                   ),
@@ -851,17 +1014,18 @@ class _StayDateTile extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 dateLine,
-                style: textTheme.titleSmall?.copyWith(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
+                  fontSize: 14,
                   height: 1.25,
-                  color: isPlaceholder ? scheme.onSurfaceVariant : null,
+                  color: isPlaceholder ? _textMuted : _textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 timeLine,
-                style: textTheme.titleLarge?.copyWith(
-                  color: KelseyColors.tealButton,
+                style: const TextStyle(
+                  color: _bookTeal,
                   fontWeight: FontWeight.w800,
                   height: 1.1,
                   fontSize: 22,
@@ -888,21 +1052,19 @@ class _GuestStepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Material(
-      color: enabled ? scheme.surfaceContainerHighest : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-      borderRadius: BorderRadius.circular(10),
+      color: enabled ? _bookSurface : _bookSurface.withValues(alpha: 0.6),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: SizedBox(
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
           child: Icon(
             icon,
             size: 22,
-            color: enabled ? KelseyColors.tealButton : scheme.onSurface.withValues(alpha: 0.3),
+            color: enabled ? _bookTeal : _textMuted.withValues(alpha: 0.4),
           ),
         ),
       ),
@@ -935,69 +1097,138 @@ class _PaymentStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        Text(
+        const _BookSectionTitle(
           'Payment method',
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          subtitle: 'Only GCash and Bank Transfer are accepted.',
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Only GCash and Bank Transfer are accepted.',
-          style: textTheme.bodySmall?.copyWith(color: KelseyColors.cardMuted),
-        ),
-        const SizedBox(height: 16),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'gcash', label: Text('GCash')),
-            ButtonSegment(value: 'bank_transfer', label: Text('Bank')),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _PaymentMethodTile(
+                label: 'GCash',
+                icon: Icons.phone_android_rounded,
+                selected: paymentMethod == 'gcash',
+                onTap: () => onPaymentMethodChanged('gcash'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PaymentMethodTile(
+                label: 'Bank',
+                icon: Icons.account_balance_outlined,
+                selected: paymentMethod == 'bank_transfer',
+                onTap: () => onPaymentMethodChanged('bank_transfer'),
+              ),
+            ),
           ],
-          selected: {paymentMethod},
-          onSelectionChanged: (s) => onPaymentMethodChanged(s.first),
         ),
         const SizedBox(height: 20),
-        if (paymentMethod == 'gcash') ...[
-          TextField(
-            controller: gcashNameController,
-            decoration: const InputDecoration(labelText: 'Name on GCash account'),
+        _BookCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                paymentMethod == 'gcash' ? 'GCash details' : 'Bank transfer details',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: _textPrimary),
+              ),
+              const SizedBox(height: 16),
+              if (paymentMethod == 'gcash') ...[
+                TextField(
+                  controller: gcashNameController,
+                  decoration: _bookInputDecoration('Name on GCash account'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: gcashNumberController,
+                  keyboardType: TextInputType.phone,
+                  decoration: _bookInputDecoration('GCash mobile number'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: gcashRefController,
+                  decoration: _bookInputDecoration('Reference number (optional)'),
+                ),
+              ] else ...[
+                TextField(
+                  controller: bankNameController,
+                  decoration: _bookInputDecoration('Bank name'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: depositorNameController,
+                  decoration: _bookInputDecoration('Depositor name'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: bankAccountController,
+                  decoration: _bookInputDecoration('Account number'),
+                ),
+              ],
+              const SizedBox(height: 14),
+              TextField(
+                controller: notesController,
+                maxLines: 2,
+                decoration: _bookInputDecoration('Notes (optional)'),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: gcashNumberController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'GCash mobile number'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: gcashRefController,
-            decoration: const InputDecoration(labelText: 'Reference number (optional)'),
-          ),
-        ] else ...[
-          TextField(
-            controller: bankNameController,
-            decoration: const InputDecoration(labelText: 'Bank name'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: depositorNameController,
-            decoration: const InputDecoration(labelText: 'Depositor name'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: bankAccountController,
-            decoration: const InputDecoration(labelText: 'Account number'),
-          ),
-        ],
-        const SizedBox(height: 16),
-        TextField(
-          controller: notesController,
-          maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Notes (optional)'),
         ),
       ],
+    );
+  }
+}
+
+class _PaymentMethodTile extends StatelessWidget {
+  const _PaymentMethodTile({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          decoration: BoxDecoration(
+            color: selected ? _bookTeal.withValues(alpha: 0.08) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? _bookTeal : const Color(0xFFE5E7EB),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 28, color: selected ? _bookTeal : _textMuted),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: selected ? _bookTeal : _textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1033,42 +1264,67 @@ class _ReviewStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        Text('Review your booking', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 16),
-        _ReviewRow(label: 'Property', value: unit.title),
-        _ReviewRow(label: 'Location', value: unit.location),
-        _ReviewRow(
-          label: 'Check-in',
-          value: formatDateTime(checkIn, fallbackTime: checkInFallbackTime),
-        ),
-        _ReviewRow(
-          label: 'Check-out',
-          value: formatDateTime(checkOut, fallbackTime: checkOutFallbackTime),
-        ),
-        _ReviewRow(label: 'Guests', value: '$guests'),
-        _ReviewRow(label: 'Nights', value: '$nights'),
-        _ReviewRow(label: 'Payment', value: paymentLabel),
-        _ReviewRow(
-          label: 'Estimated total',
-          value: CurrencyUtils.formatAmount(estimatedTotal, currency: unit.currency),
+        const _BookSectionTitle('Review your booking', subtitle: 'Confirm details before payment'),
+        const SizedBox(height: 14),
+        _BookCard(
+          child: Column(
+            children: [
+              _ReviewRow(label: 'Property', value: unit.title),
+              const Divider(height: 20, color: Color(0xFFF3F4F6)),
+              _ReviewRow(label: 'Location', value: unit.location),
+              const Divider(height: 20, color: Color(0xFFF3F4F6)),
+              _ReviewRow(
+                label: 'Check-in',
+                value: formatDateTime(checkIn, fallbackTime: checkInFallbackTime),
+              ),
+              const Divider(height: 20, color: Color(0xFFF3F4F6)),
+              _ReviewRow(
+                label: 'Check-out',
+                value: formatDateTime(checkOut, fallbackTime: checkOutFallbackTime),
+              ),
+              const Divider(height: 20, color: Color(0xFFF3F4F6)),
+              _ReviewRow(label: 'Guests', value: '$guests'),
+              const Divider(height: 20, color: Color(0xFFF3F4F6)),
+              _ReviewRow(label: 'Nights', value: '$nights'),
+              const Divider(height: 20, color: Color(0xFFF3F4F6)),
+              _ReviewRow(label: 'Payment', value: paymentLabel),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Final amount is calculated by the server. Your booking will be pending until payment is verified.',
-          style: textTheme.bodySmall?.copyWith(color: KelseyColors.cardMuted),
+        _BookCard(
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Estimated total',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: _textPrimary),
+                ),
+              ),
+              Text(
+                CurrencyUtils.formatAmount(estimatedTotal, currency: unit.currency),
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: _bookTeal),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: agreeTerms,
-          onChanged: (v) => onAgreeChanged(v ?? false),
-          title: const Text('I agree to the payment terms and conditions'),
-          controlAffinity: ListTileControlAffinity.leading,
+        const SizedBox(height: 12),
+        _BookCard(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: agreeTerms,
+            activeColor: _bookTeal,
+            onChanged: (v) => onAgreeChanged(v ?? false),
+            title: const Text(
+              'I agree to the payment terms and conditions',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _textPrimary),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
         ),
       ],
     );
@@ -1083,21 +1339,23 @@ class _ReviewRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(label, style: textTheme.bodyMedium?.copyWith(color: KelseyColors.cardMuted)),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: _textMuted, fontWeight: FontWeight.w500),
           ),
-          Expanded(
-            child: Text(value, style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textPrimary),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

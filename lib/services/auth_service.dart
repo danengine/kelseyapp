@@ -6,6 +6,7 @@ import '../config/api_config.dart';
 import '../models/user_profile.dart';
 import 'auth_session.dart';
 import 'auth_storage.dart';
+import 'push_notification_service.dart';
 
 class AuthLoginResult {
   const AuthLoginResult({required this.profile, required this.accessToken});
@@ -124,6 +125,9 @@ class AuthService {
         AuthSession.setSession(token: token, userProfile: resolvedProfile);
         await AuthStorage.clearPersistedCredentials();
       }
+
+      // Register device for push notifications after login.
+      await PushNotificationService.syncTokenIfLoggedIn();
 
       return AuthLoginResult(profile: resolvedProfile, accessToken: token);
     }

@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'kelsey_brand.dart';
 import 'models/chat_message.dart';
+import 'models/unit_listing.dart';
 import 'services/auth_session.dart';
 import 'services/kelsey_chatbot_service.dart';
+import 'unit_detail_screen.dart';
+import 'utils/chat_location_helper.dart';
+import 'utils/chat_unit_parser.dart';
+import 'widgets/chat_formatted_text.dart';
 
 /// Chat with Kelsey — friendly in-app homestay assistant (mock replies for now).
 class KelseyChatScreen extends StatefulWidget {
@@ -27,6 +32,7 @@ class _KelseyChatScreenState extends State<KelseyChatScreen> {
   void initState() {
     super.initState();
     _appendBotMessage(_chatbot.welcomeMessage(AuthSession.profile?.firstName));
+    ChatLocationHelper.prefetch();
   }
 
   @override
@@ -74,6 +80,13 @@ class _KelseyChatScreenState extends State<KelseyChatScreen> {
     final text = _inputController.text.trim();
     if (text.isEmpty || _botTyping) return;
 
+    if (!AuthSession.isLoggedIn) {
+      _appendUserMessage(text);
+      _inputController.clear();
+      _appendBotMessage('Please log in to chat with me and get real-time unit recommendations.');
+      return;
+    }
+
     _inputController.clear();
     _appendUserMessage(text);
 
@@ -81,15 +94,74 @@ class _KelseyChatScreenState extends State<KelseyChatScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await _chatbot.replyTo(text);
+      double? latitude;
+      double? longitude;
+
+      if (chatMessageWantsNearMe(text)) {
+        final position = await ChatLocationHelper.forNearMeQuery();
+        if (position == null) {
+          if (!mounted) return;
+          setState(() => _botTyping = false);
+          _appendBotMessage(
+            'I need your location to find stays near you. '
+            'Allow location access for Kelsey in Settings, then tap "Units near me" again.',
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location is required for nearby unit search.'),
+              ),
+            );
+          }
+          return;
+        }
+        latitude = position.latitude;
+        longitude = position.longitude;
+      }
+
+      final history = _messages
+          .where((m) => m.id != 'welcome')
+          .map(
+            (m) => (
+              role: m.isBot ? 'model' : 'user',
+              content: m.text,
+            ),
+          )
+          .toList();
+
+      final reply = await _chatbot.replyTo(
+        userMessage: text,
+        history: history,
+        latitude: latitude,
+        longitude: longitude,
+      );
       if (!mounted) return;
       setState(() => _botTyping = false);
-      _appendBotMessage(reply);
+      _appendBotReply(reply);
+    } on ChatbotException catch (e) {
+      if (!mounted) return;
+      setState(() => _botTyping = false);
+      _appendBotMessage(e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _botTyping = false);
-      _appendBotMessage("Sorry, I hit a small snag. Please try again in a moment.");
+      _appendBotMessage('Sorry, I hit a small snag. Please try again in a moment.');
     }
+  }
+
+  void _appendBotReply(ChatbotReply reply) {
+    setState(() {
+      _messages.add(
+        ChatMessage(
+          id: _nextId(),
+          text: reply.message,
+          sender: ChatSender.bot,
+          sentAt: DateTime.now(),
+          suggestedUnits: reply.suggestedUnits,
+        ),
+      );
+    });
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -178,7 +250,7 @@ class _KelseyChatScreenState extends State<KelseyChatScreen> {
                 runSpacing: 8,
                 children: [
                   _QuickChip(label: 'How do I book?', onTap: () => _sendQuickReply('How do I book?')),
-                  _QuickChip(label: 'Show nearby stays', onTap: () => _sendQuickReply('How do I use the map?')),
+                  _QuickChip(label: 'Units near me', onTap: () => _sendQuickReply('Find units near my location')),
                   _QuickChip(label: 'Payment options', onTap: () => _sendQuickReply('What payment options are there?')),
                 ],
               ),
@@ -411,7 +483,7 @@ class KelseyChatLauncherButton extends StatelessWidget {
       color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(28),
-        side: BorderSide(color: KelseyColors.tealButton.withValues(alpha: 0.12)),
+        side: BorderSide(color: KelseyColors.adminTeal.withValues(alpha: 0.15)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -430,7 +502,7 @@ class KelseyChatLauncherButton extends StatelessWidget {
                   Text(
                     'Kelsey',
                     style: textTheme.titleSmall?.copyWith(
-                      color: KelseyColors.tealButton,
+                      color: KelseyColors.adminTeal,
                       fontWeight: FontWeight.w800,
                       height: 1.1,
                     ),
@@ -468,32 +540,133 @@ class _BotMessageBubble extends StatelessWidget {
         const KelseyBotAvatar(size: 32),
         const SizedBox(width: 8),
         Flexible(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-                bottomRight: Radius.circular(18),
-                bottomLeft: Radius.circular(4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(18),
+                    topRight: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                    bottomLeft: Radius.circular(4),
+                  ),
+                  border: Border.all(color: KelseyColors.tealButton.withValues(alpha: 0.12)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ChatFormattedText(
+                  text: message.text,
+                  style: textTheme.bodyLarge?.copyWith(height: 1.4),
+                ),
               ),
-              border: Border.all(color: KelseyColors.tealButton.withValues(alpha: 0.12)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+              if (message.suggestedUnits.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...message.suggestedUnits.map(
+                  (unit) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _ChatUnitPreviewCard(unit: unit),
+                  ),
                 ),
               ],
-            ),
-            child: Text(
-              message.text,
-              style: textTheme.bodyLarge?.copyWith(height: 1.4),
-            ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ChatUnitPreviewCard extends StatelessWidget {
+  const _ChatUnitPreviewCard({required this.unit});
+
+  final UnitListing unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(builder: (_) => UnitDetailScreen(unit: unit)),
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: KelseyColors.adminTeal.withValues(alpha: 0.2)),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 72,
+                height: 72,
+                child: unit.mainImageUrl.isNotEmpty
+                    ? Image.network(
+                        unit.mainImageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _thumbFallback(),
+                      )
+                    : _thumbFallback(),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        unit.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        unit.locationLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        unit.priceLabel,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: KelseyColors.adminTeal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(right: 10),
+                child: Icon(Icons.chevron_right_rounded, color: KelseyColors.adminTeal),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbFallback() {
+    return ColoredBox(
+      color: KelseyColors.adminSurface,
+      child: Icon(Icons.home_outlined, color: Colors.grey.shade400),
     );
   }
 }

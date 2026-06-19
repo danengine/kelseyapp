@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../config/api_config.dart';
 import '../utils/currency_utils.dart';
 
@@ -22,6 +24,8 @@ class UnitListing {
     this.distanceKm,
     this.checkInTime,
     this.checkOutTime,
+    this.amenities = const [],
+    this.squareFeet,
   });
 
   final String id;
@@ -43,6 +47,8 @@ class UnitListing {
   final double? distanceKm;
   final String? checkInTime;
   final String? checkOutTime;
+  final List<String> amenities;
+  final int? squareFeet;
 
   String get locationLabel {
     if (location.isNotEmpty) return location;
@@ -79,13 +85,33 @@ class UnitListing {
       maxCapacity: (json['max_capacity'] as num?)?.toInt(),
       checkInTime: json['check_in_time'] as String?,
       checkOutTime: json['check_out_time'] as String?,
+      amenities: _parseAmenities(json['amenities']),
+      squareFeet: (json['square_feet'] as num?)?.toInt() ??
+          ((json['area_sqm'] as num?) != null ? ((json['area_sqm'] as num) * 10.764).round() : null),
     );
+  }
+
+  static List<String> _parseAmenities(dynamic raw) {
+    if (raw is List) {
+      return raw.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+    }
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+        }
+      } catch (_) {}
+    }
+    return const [];
   }
 
   UnitListing copyWith({
     double? distanceKm,
     String? checkInTime,
     String? checkOutTime,
+    List<String>? amenities,
+    int? squareFeet,
   }) {
     return UnitListing(
       id: id,
@@ -107,6 +133,8 @@ class UnitListing {
       distanceKm: distanceKm ?? this.distanceKm,
       checkInTime: checkInTime ?? this.checkInTime,
       checkOutTime: checkOutTime ?? this.checkOutTime,
+      amenities: amenities ?? this.amenities,
+      squareFeet: squareFeet ?? this.squareFeet,
     );
   }
 }

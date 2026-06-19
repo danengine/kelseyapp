@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
-import 'admin_bookings_tab.dart';
+import 'admin_dashboard_tab.dart';
 import 'bookings_tab.dart';
 import 'home_tab.dart';
+import 'kelsey_bottom_nav.dart';
 import 'kelsey_chat_screen.dart';
 import 'kelsey_brand.dart';
 import 'login_screen.dart';
 import 'services/auth_session.dart';
 import 'services/auth_storage.dart';
 import 'services/bookings_cache.dart';
+import 'services/push_notification_service.dart';
 
 import 'facebook_posts_screen.dart';
 import 'rewards_screen.dart';
@@ -24,7 +26,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
   final GlobalKey<BookingsTabState> _bookingsTabKey = GlobalKey<BookingsTabState>();
-  final GlobalKey<AdminBookingsTabState> _adminBookingsTabKey = GlobalKey<AdminBookingsTabState>();
+  final GlobalKey<AdminDashboardTabState> _adminDashboardKey = GlobalKey<AdminDashboardTabState>();
 
   bool get _isAdmin => AuthSession.profile?.isAdmin ?? false;
 
@@ -39,21 +41,44 @@ class _MainShellState extends State<MainShell> {
     if (index == _bookingsIndex) {
       _bookingsTabKey.currentState?.reload();
     } else if (_manageIndex != null && index == _manageIndex) {
-      _adminBookingsTabKey.currentState?.reload();
+      _adminDashboardKey.currentState?.reload();
     }
   }
 
   Widget _pageAt(int index) {
     if (index == 0) return const HomeTab();
     if (index == _bookingsIndex) return BookingsTab(key: _bookingsTabKey);
-    if (_isAdmin && index == 2) return AdminBookingsTab(key: _adminBookingsTabKey);
+    if (_isAdmin && index == 2) return AdminDashboardTab(key: _adminDashboardKey);
     return const _ProfileTab();
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final safeIndex = _index.clamp(0, _profileIndex);
+
+    final destinations = <KelseyNavDestination>[
+      const KelseyNavDestination(
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
+        label: 'Home',
+      ),
+      const KelseyNavDestination(
+        icon: Icons.calendar_month_outlined,
+        selectedIcon: Icons.calendar_month_rounded,
+        label: 'Bookings',
+      ),
+      if (_isAdmin)
+        const KelseyNavDestination(
+          icon: Icons.dashboard_outlined,
+          selectedIcon: Icons.dashboard_rounded,
+          label: 'Manage',
+        ),
+      const KelseyNavDestination(
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
+        label: 'Profile',
+      ),
+    ];
 
     return Scaffold(
       body: AnimatedSwitcher(
@@ -67,7 +92,7 @@ class _MainShellState extends State<MainShell> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.only(bottom: 8),
         child: KelseyChatLauncherButton(
           onTap: () {
             Navigator.of(context).push<void>(
@@ -76,33 +101,10 @@ class _MainShellState extends State<MainShell> {
           },
         ),
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: KelseyBottomNavBar(
         selectedIndex: safeIndex,
-        onDestinationSelected: _onTabSelected,
-        indicatorColor: scheme.primaryContainer,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month_rounded),
-            label: 'Bookings',
-          ),
-          if (_isAdmin)
-            const NavigationDestination(
-              icon: Icon(Icons.admin_panel_settings_outlined),
-              selectedIcon: Icon(Icons.admin_panel_settings_rounded),
-              label: 'Manage',
-            ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Profile',
-          ),
-        ],
+        onSelected: _onTabSelected,
+        destinations: destinations,
       ),
     );
   }
@@ -216,19 +218,11 @@ class _ProfileTab extends StatelessWidget {
                 subtitle: canAccessRewards
                     ? null
                     : Text(
-                        'Agents only',
+                        'View agent leaderboard',
                         style: textTheme.bodySmall?.copyWith(color: KelseyColors.cardMuted),
                       ),
                 trailing: Icon(Icons.chevron_right_rounded, color: KelseyColors.cardMuted),
                 onTap: () {
-                  if (!canAccessRewards) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Rewards Hub is available for agents and admins.'),
-                      ),
-                    );
-                    return;
-                  }
                   Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(builder: (_) => const RewardsScreen()),
                   );
@@ -240,6 +234,7 @@ class _ProfileTab extends StatelessWidget {
                 leading: const Icon(Icons.logout_rounded),
                 title: const Text('Log out'),
                 onTap: () async {
+                  await PushNotificationService.unregisterCurrentToken();
                   await AuthStorage.clearSession();
                   await BookingsCache.clear();
                   if (!context.mounted) return;

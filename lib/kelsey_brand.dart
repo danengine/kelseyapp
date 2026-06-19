@@ -16,4 +16,9 @@ class KelseyColors {
   static const Color tealButton = Color(0xFF1A5F57);
   static const Color inputBorder = Color(0xFFD5D5D5);
   static const Color cardMuted = Color(0xFF6B6B6B);
+
+  /// Admin hub — matches web `frontend/app/admin`.
+  static const Color adminTeal = Color(0xFF0B5858);
+  static const Color adminSurface = Color(0xFFF9FAFB);
+  static const Color adminBadgeRed = Color(0xFFB84C4C);
 }

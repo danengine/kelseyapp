@@ -153,12 +153,67 @@ class PointsTransaction {
 
 class RewardsData {
   const RewardsData({
-    required this.balance,
-    required this.transactions,
+    this.balance,
+    this.transactions = const [],
+    this.leaderboard = const [],
+    this.myRank,
+    this.isAgentView = false,
   });
 
-  final AgentPointsBalance balance;
+  final AgentPointsBalance? balance;
   final List<PointsTransaction> transactions;
+  final List<LeaderboardEntry> leaderboard;
+  final LeaderboardRank? myRank;
+  final bool isAgentView;
+}
+
+class LeaderboardEntry {
+  const LeaderboardEntry({
+    required this.rank,
+    required this.agentId,
+    required this.agentName,
+    required this.totalPoints,
+    required this.totalBookings,
+    required this.isCurrentUser,
+  });
+
+  final int rank;
+  final String agentId;
+  final String agentName;
+  final int totalPoints;
+  final int totalBookings;
+  final bool isCurrentUser;
+
+  factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
+    return LeaderboardEntry(
+      rank: (json['rank'] as num?)?.toInt() ?? 0,
+      agentId: json['agentId']?.toString() ?? '',
+      agentName: json['agentName'] as String? ?? 'Agent',
+      totalPoints: (json['totalPoints'] as num?)?.toInt() ?? 0,
+      totalBookings: (json['totalBookings'] as num?)?.toInt() ?? 0,
+      isCurrentUser: json['isCurrentUser'] == true,
+    );
+  }
+}
+
+class LeaderboardRank {
+  const LeaderboardRank({
+    required this.rank,
+    required this.totalPoints,
+    required this.totalBookings,
+  });
+
+  final int rank;
+  final int totalPoints;
+  final int totalBookings;
+
+  factory LeaderboardRank.fromJson(Map<String, dynamic> json) {
+    return LeaderboardRank(
+      rank: (json['rank'] as num?)?.toInt() ?? 0,
+      totalPoints: (json['totalPoints'] as num?)?.toInt() ?? 0,
+      totalBookings: (json['totalBookings'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 /// Catalog item for the Redeem tab (mock until catalog API exists).

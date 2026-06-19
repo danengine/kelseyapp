@@ -7,9 +7,11 @@ import 'services/admin_bookings_service.dart';
 import 'services/auth_service.dart';
 import 'utils/currency_utils.dart';
 
-/// Admin tab: review and approve/decline booking requests.
+/// Admin screen: review and approve/decline booking requests.
 class AdminBookingsTab extends StatefulWidget {
-  const AdminBookingsTab({super.key});
+  const AdminBookingsTab({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   AdminBookingsTabState createState() => AdminBookingsTabState();
@@ -87,7 +89,9 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Booking confirmed')),
       );
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       await _loadBookings();
     } catch (e) {
       if (!mounted) return;
@@ -126,7 +130,9 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Booking request declined')),
       );
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       await _loadBookings();
     } catch (e) {
       if (!mounted) return;
@@ -158,41 +164,50 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
     final items = _filtered;
 
-    return RefreshIndicator(
+    final scrollView = RefreshIndicator(
+      color: KelseyColors.adminTeal,
       onRefresh: _loadBookings,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverAppBar(
-            pinned: true,
-            surfaceTintColor: Colors.transparent,
-            backgroundColor: scheme.surface,
-            title: const Text('Manage'),
-            actions: [
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: _loading ? null : _loadBookings,
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-            ],
-          ),
+          if (!widget.embedded)
+            SliverAppBar(
+              pinned: true,
+              surfaceTintColor: Colors.transparent,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              title: const Text('Booking requests'),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _loading ? null : _loadBookings,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            padding: EdgeInsets.fromLTRB(16, widget.embedded ? 12 : 8, 16, 12),
             sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (widget.embedded) ...[
+                    Text(
+                      'Booking requests',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF111827),
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
                   Text(
-                    'Booking requests',
-                    style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Review pending stays and approve or decline, like the admin web panel.',
-                    style: textTheme.bodyMedium?.copyWith(color: KelseyColors.cardMuted),
+                    widget.embedded
+                        ? 'Review pending stays and approve or decline.'
+                        : 'Review pending stays and approve or decline, like the admin web panel.',
+                    style: textTheme.bodyMedium?.copyWith(color: const Color(0xFF6B7280)),
                   ),
                   const SizedBox(height: 14),
                   Row(
@@ -206,7 +221,7 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
                       _StatPill(
                         label: 'Total',
                         value: '${_bookings.length}',
-                        color: KelseyColors.tealButton,
+                        color: KelseyColors.adminTeal,
                       ),
                     ],
                   ),
@@ -221,7 +236,7 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
                           child: FilterChip(
                             selected: selected,
                             label: Text(filter.label),
-                            selectedColor: KelseyColors.tealButton,
+                            selectedColor: KelseyColors.adminTeal,
                             checkmarkColor: Colors.white,
                             labelStyle: TextStyle(
                               color: selected ? Colors.white : null,
@@ -271,7 +286,7 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, widget.embedded ? 100 : 32),
               sliver: SliverList.separated(
                 itemCount: items.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 12),
@@ -287,6 +302,9 @@ class AdminBookingsTabState extends State<AdminBookingsTab> {
         ],
       ),
     );
+
+    if (widget.embedded) return scrollView;
+    return Scaffold(body: scrollView);
   }
 }
 
@@ -353,8 +371,8 @@ class _AdminBookingCard extends StatelessWidget {
       color: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Color(0xFFF3F4F6)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

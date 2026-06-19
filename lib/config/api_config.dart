@@ -6,9 +6,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class ApiConfig {
   ApiConfig._();
 
-  /// Use `127.0.0.1` on iOS simulator (avoids IPv6 localhost issues).
-  /// Physical iPhone: your Mac LAN IP, e.g. `192.168.1.10`.
-  static const String host = '127.0.0.1';
+  /// Physical iPhone: Mac LAN IP. Simulator: use `127.0.0.1`.
+  static const String host = '192.168.1.167';
 
   /// Docker compose (`docker compose up`) uses **3001**. Match this to your running backend.
   static const int port = 3001;
@@ -45,7 +44,30 @@ class ApiConfig {
 
   static String bookingDeclineUrl(String id) => '$baseUrl/api/bookings/$id/decline';
 
+  static String get deviceTokenUrl => '$baseUrl/api/notifications/device-token';
+
+  /// AI chatbot service (`kelseybackend/chatbot`) default port.
+  static const int chatbotPort = 3003;
+
+  static String get chatbotBaseUrl => 'http://$host:$chatbotPort';
+
+  static String get chatbotChatUrl => '$chatbotBaseUrl/api/chat';
+
+  /// Facebook scraper service (`kelseybackend/datascraping`) default port.
+  static const int scraperPort = 3004;
+
+  static String get scraperBaseUrl => 'http://$host:$scraperPort';
+
+  static String get facebookPostsUrl => '$scraperBaseUrl/api/facebook/posts';
+
+  static String facebookPostUrl(String id) =>
+      '$scraperBaseUrl/api/facebook/posts/${Uri.encodeComponent(id)}';
+
+  static String get facebookPostsDeleteUrl => '$scraperBaseUrl/api/facebook/posts/delete';
+
   static String get rewardsMeUrl => '$rewardsBaseUrl/api/rewards/me';
+
+  static String get rewardsLeaderboardUrl => '$rewardsBaseUrl/api/rewards/leaderboard';
 
   /// Relative paths and backend `localhost:PORT/...` URLs → app [baseUrl].
   static String resolveMediaUrl(String? url) {

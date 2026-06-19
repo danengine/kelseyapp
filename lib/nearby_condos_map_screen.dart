@@ -11,7 +11,9 @@ import 'models/unit_listing.dart';
 import 'services/auth_service.dart';
 import 'services/units_service.dart';
 import 'unit_detail_screen.dart';
+import 'utils/currency_utils.dart';
 import 'utils/map_navigation.dart';
+import 'widgets/unit_gallery_viewer.dart';
 
 /// Map of available units using OpenStreetMap, sorted nearest → farthest via Haversine.
 class NearbyCondosMapScreen extends StatefulWidget {
@@ -71,21 +73,13 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
     if (!mounted || !_pendingFit || !_mapReady || _mappableUnits.isEmpty) return;
     _pendingFit = false;
     try {
-      if (_userLocation != null) {
-        _fitMapToAll();
-      } else {
-        _fitMapToCondos();
-      }
+      _fitMapToCondos();
     } catch (_) {
       _pendingFit = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_pendingFit) return;
         try {
-          if (_userLocation != null) {
-            _fitMapToAll();
-          } else {
-            _fitMapToCondos();
-          }
+          _fitMapToCondos();
         } catch (_) {}
         _pendingFit = false;
       });
@@ -191,20 +185,6 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
     );
   }
 
-  void _fitMapToAll() {
-    final points = <LatLng>[
-      ..._mappableUnits.map((u) => LatLng(u.latitude!, u.longitude!)),
-      ?_userLocation,
-    ];
-    if (points.isEmpty) return;
-    _mapController.fitCamera(
-      CameraFit.coordinates(
-        coordinates: points,
-        padding: const EdgeInsets.fromLTRB(48, 96, 48, 280),
-      ),
-    );
-  }
-
   Future<void> _openInMaps(UnitListing unit) async {
     if (unit.latitude == null || unit.longitude == null) return;
     final opened = await openLocationInMaps(
@@ -225,11 +205,17 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
   }
 
   LatLng get _initialCenter {
-    if (_userLocation != null) return _userLocation!;
     if (_mappableUnits.isNotEmpty) {
-      final first = _mappableUnits.first;
-      return LatLng(first.latitude!, first.longitude!);
+      final points = _mappableUnits.map((u) => LatLng(u.latitude!, u.longitude!)).toList();
+      var latSum = 0.0;
+      var lngSum = 0.0;
+      for (final point in points) {
+        latSum += point.latitude;
+        lngSum += point.longitude;
+      }
+      return LatLng(latSum / points.length, lngSum / points.length);
     }
+    if (_userLocation != null) return _userLocation!;
     return _defaultCenter;
   }
 
@@ -289,53 +275,37 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
                                       circles: [
                                         CircleMarker(
                                           point: _userLocation!,
-                                          radius: 14,
+                                          radius: 8,
                                           useRadiusInMeter: false,
-                                          color: Colors.blue.withValues(alpha: 0.18),
+                                          color: Colors.blue.withValues(alpha: 0.2),
                                           borderColor: Colors.blue,
-                                          borderStrokeWidth: 2,
+                                          borderStrokeWidth: 1.5,
                                         ),
                                       ],
                                     ),
                                   MarkerLayer(
-                                    markers: [
-                                      if (_userLocation != null)
-                                        Marker(
-                                          point: _userLocation!,
-                                          width: 36,
-                                          height: 36,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.blue,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 3),
-                                            ),
-                                            child: const Icon(Icons.my_location, color: Colors.white, size: 18),
-                                          ),
+                                    markers: _mappableUnits.map((unit) {
+                                      final priceLabel = CurrencyUtils.formatAmount(
+                                        unit.price,
+                                        currency: unit.currency,
+                                      );
+                                      return Marker(
+                                        point: LatLng(unit.latitude!, unit.longitude!),
+                                        width: 108,
+                                        height: 44,
+                                        alignment: Alignment.bottomCenter,
+                                        child: _MapPriceMarker(
+                                          label: priceLabel,
+                                          onTap: () {
+                                            Navigator.of(context).push<void>(
+                                              MaterialPageRoute<void>(
+                                                builder: (_) => UnitDetailScreen(unit: unit),
+                                              ),
+                                            );
+                                          },
                                         ),
-                                      ..._mappableUnits.map((unit) {
-                                        return Marker(
-                                          point: LatLng(unit.latitude!, unit.longitude!),
-                                          width: 44,
-                                          height: 44,
-                                          alignment: Alignment.bottomCenter,
-                                          child: GestureDetector(
-                                            onTap: () {
-                                              Navigator.of(context).push<void>(
-                                                MaterialPageRoute<void>(
-                                                  builder: (_) => UnitDetailScreen(unit: unit),
-                                                ),
-                                              );
-                                            },
-                                            child: const Icon(
-                                              Icons.location_on,
-                                              color: KelseyColors.tealButton,
-                                              size: 44,
-                                            ),
-                                          ),
-                                        );
-                                      }),
-                                    ],
+                                      );
+                                    }).toList(),
                                   ),
                                 ],
                               ),
@@ -357,16 +327,6 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
                                   child: _MapStatusBanner(
                                     icon: Icons.info_outline_rounded,
                                     message: _locationNotice!,
-                                  ),
-                                ),
-                              if (hasLocationSort && !_loadingLocation && _locationNotice == null)
-                                const Positioned(
-                                  top: 16,
-                                  left: 16,
-                                  child: _MapStatusBanner(
-                                    icon: Icons.near_me_rounded,
-                                    message: 'Sorted nearest → farthest',
-                                    compact: true,
                                   ),
                                 ),
                               if (_mappableUnits.isEmpty)
@@ -462,6 +422,65 @@ class _NearbyCondosMapScreenState extends State<NearbyCondosMapScreen> {
   }
 }
 
+class _MapPriceMarker extends StatelessWidget {
+  const _MapPriceMarker({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: KelseyColors.tealButton, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                color: KelseyColors.tealButton,
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: KelseyColors.tealButton,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+          ),
+        ],
+        ),
+      ),
+    );
+  }
+}
+
 class _UnitMapListTile extends StatelessWidget {
   const _UnitMapListTile({
     required this.unit,
@@ -508,27 +527,30 @@ class _UnitMapListTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
               ],
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: unit.mainImageUrl.isEmpty
-                    ? SizedBox(
-                        width: 72,
-                        height: 72,
-                        child: ColoredBox(
-                          color: KelseyColors.tealButton.withValues(alpha: 0.15),
-                          child: const Icon(Icons.night_shelter_outlined, color: KelseyColors.tealButton),
+              GestureDetector(
+                onTap: () => UnitGalleryViewer.openForUnit(context, unit),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: unit.mainImageUrl.isEmpty
+                      ? SizedBox(
+                          width: 72,
+                          height: 72,
+                          child: ColoredBox(
+                            color: KelseyColors.tealButton.withValues(alpha: 0.15),
+                            child: const Icon(Icons.night_shelter_outlined, color: KelseyColors.tealButton),
+                          ),
+                        )
+                      : Image.network(
+                          unit.mainImageUrl,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => ColoredBox(
+                            color: KelseyColors.tealButton.withValues(alpha: 0.15),
+                            child: const Icon(Icons.broken_image_outlined, color: KelseyColors.tealButton),
+                          ),
                         ),
-                      )
-                    : Image.network(
-                        unit.mainImageUrl,
-                        width: 72,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => ColoredBox(
-                          color: KelseyColors.tealButton.withValues(alpha: 0.15),
-                          child: const Icon(Icons.broken_image_outlined, color: KelseyColors.tealButton),
-                        ),
-                      ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

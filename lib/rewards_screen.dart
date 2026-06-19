@@ -22,6 +22,9 @@ class _RewardsScreenState extends State<RewardsScreen> with SingleTickerProvider
 
   AgentPointsBalance? _balance;
   List<PointsTransaction> _history = [];
+  List<LeaderboardEntry> _leaderboard = const [];
+  LeaderboardRank? _myRank;
+  bool _isAgentView = false;
   bool _loading = true;
   String? _error;
   _StatsPeriod _statsPeriod = _StatsPeriod.month;
@@ -29,7 +32,7 @@ class _RewardsScreenState extends State<RewardsScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -50,8 +53,14 @@ class _RewardsScreenState extends State<RewardsScreen> with SingleTickerProvider
       setState(() {
         _balance = data.balance;
         _history = data.transactions;
+        _leaderboard = data.leaderboard;
+        _myRank = data.myRank;
+        _isAgentView = data.isAgentView;
         _loading = false;
       });
+      if (!data.isAgentView && _tabController.index != 2) {
+        _tabController.animateTo(2);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -94,20 +103,33 @@ class _RewardsScreenState extends State<RewardsScreen> with SingleTickerProvider
                     _RewardsTopSection(
                       tabController: _tabController,
                       balance: _balance?.totalPoints ?? 0,
+                      isAgentView: _isAgentView,
                     ),
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _OverviewTab(
-                            history: _history,
-                            statsPeriod: _statsPeriod,
-                            onStatsPeriodChanged: (p) => setState(() => _statsPeriod = p),
-                            onViewAll: () => _showActivitySheet(context),
-                          ),
-                          _RedeemTab(
-                            balance: _balance?.totalPoints ?? 0,
-                            onRedeem: (reward) => _showRedeemDialog(reward),
+                          _isAgentView
+                              ? _OverviewTab(
+                                  history: _history,
+                                  statsPeriod: _statsPeriod,
+                                  onStatsPeriodChanged: (p) => setState(() => _statsPeriod = p),
+                                  onViewAll: () => _showActivitySheet(context),
+                                )
+                              : const _AgentOnlyTab(
+                                  message: 'Points activity and stats are available for agents.',
+                                ),
+                          _isAgentView
+                              ? _RedeemTab(
+                                  balance: _balance?.totalPoints ?? 0,
+                                  onRedeem: (reward) => _showRedeemDialog(reward),
+                                )
+                              : const _AgentOnlyTab(
+                                  message: 'Redeem rewards when you join as a Kelsey agent.',
+                                ),
+                          _LeaderboardTab(
+                            leaderboard: _leaderboard,
+                            myRank: _myRank,
                           ),
                         ],
                       ),
@@ -167,10 +189,12 @@ class _RewardsTopSection extends StatelessWidget {
   const _RewardsTopSection({
     required this.tabController,
     required this.balance,
+    required this.isAgentView,
   });
 
   final TabController tabController;
   final int balance;
+  final bool isAgentView;
 
   @override
   Widget build(BuildContext context) {
@@ -214,7 +238,9 @@ class _RewardsTopSection extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(left: 12),
                     child: Text(
-                      'Book. Earn. Redeem. Track points from confirmed bookings.',
+                      isAgentView
+                          ? 'Book. Earn. Redeem. Track points from confirmed bookings.'
+                          : 'See how agents rank by rewards points earned.',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.88),
                         fontSize: 13,
@@ -222,11 +248,13 @@ class _RewardsTopSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: _PointsBalanceCard(balance: balance),
-                  ),
+                  if (isAgentView) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _PointsBalanceCard(balance: balance),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -246,6 +274,7 @@ class _RewardsTopSection extends StatelessWidget {
             tabs: const [
               Tab(text: 'Overview'),
               Tab(text: 'Redeem'),
+              Tab(text: 'Leaderboard'),
             ],
           ),
         ),
@@ -694,7 +723,10 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _RedeemTab extends StatelessWidget {
-  const _RedeemTab({required this.balance, required this.onRedeem});
+  const _RedeemTab({
+    required this.balance,
+    required this.onRedeem,
+  });
 
   final int balance;
   final ValueChanged<RewardOption> onRedeem;
@@ -726,7 +758,11 @@ class _RedeemTab extends StatelessWidget {
               Expanded(
                 child: Container(
                   color: Colors.grey.shade100,
-                  child: Icon(reward.icon ?? Icons.card_giftcard_rounded, size: 48, color: _rewardsTeal.withValues(alpha: 0.5)),
+                  child: Icon(
+                    reward.icon ?? Icons.card_giftcard_rounded,
+                    size: 48,
+                    color: _rewardsTeal.withValues(alpha: 0.5),
+                  ),
                 ),
               ),
               Padding(
@@ -739,11 +775,18 @@ class _RedeemTab extends StatelessWidget {
                   children: [
                     Text(
                       '${_formatNumber(reward.pointsCost)} pts',
-                      style: const TextStyle(color: _rewardsTeal, fontWeight: FontWeight.w600, fontSize: 13),
+                      style: const TextStyle(
+                        color: _rewardsTeal,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                     if (reward.stock != null) ...[
                       const Spacer(),
-                      Text('${reward.stock} left', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(
+                        '${reward.stock} left',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
                     ],
                   ],
                 ),
@@ -763,6 +806,194 @@ class _RedeemTab extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _LeaderboardTab extends StatelessWidget {
+  const _LeaderboardTab({
+    required this.leaderboard,
+    required this.myRank,
+  });
+
+  final List<LeaderboardEntry> leaderboard;
+  final LeaderboardRank? myRank;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        _LeaderboardSection(leaderboard: leaderboard, myRank: myRank),
+      ],
+    );
+  }
+}
+
+class _AgentOnlyTab extends StatelessWidget {
+  const _AgentOnlyTab({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _LeaderboardSection extends StatelessWidget {
+  const _LeaderboardSection({required this.leaderboard, required this.myRank});
+
+  final List<LeaderboardEntry> leaderboard;
+  final LeaderboardRank? myRank;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.emoji_events_rounded, color: Colors.amber.shade700, size: 22),
+                  const SizedBox(width: 8),
+                  const Text('Agent Leaderboard', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Top agents by rewards points earned',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              if (myRank != null && myRank!.rank > 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _rewardsTeal.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _rewardsTeal.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    'Your rank: #${myRank!.rank} · ${_formatNumber(myRank!.totalPoints)} pts · ${myRank!.totalBookings} bookings',
+                    style: const TextStyle(
+                      color: _rewardsTeal,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (leaderboard.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'No leaderboard data yet.',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  ),
+                )
+              else
+                ...leaderboard.map((entry) => _LeaderboardRow(entry: entry)),
+            ],
+          ),
+        ),
+      );
+  }
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  const _LeaderboardRow({required this.entry});
+
+  final LeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final rankColor = switch (entry.rank) {
+      1 => const Color(0xFFFFD700),
+      2 => const Color(0xFFC0C0C0),
+      3 => const Color(0xFFCD7F32),
+      _ => Colors.grey.shade400,
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: entry.isCurrentUser ? _rewardsTeal.withValues(alpha: 0.08) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: entry.isCurrentUser
+            ? Border.all(color: _rewardsTeal.withValues(alpha: 0.25))
+            : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: entry.rank <= 3 ? rankColor.withValues(alpha: 0.25) : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: rankColor.withValues(alpha: 0.6)),
+            ),
+            child: Text(
+              '${entry.rank}',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: entry.rank <= 3 ? Colors.black87 : Colors.grey.shade700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.agentName,
+                  style: TextStyle(
+                    fontWeight: entry.isCurrentUser ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  '${entry.totalBookings} bookings',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${_formatNumber(entry.totalPoints)} pts',
+            style: const TextStyle(
+              color: _rewardsTeal,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1005,9 +1236,11 @@ const _termsSections = [
   ]),
   _TermSection('2. Earning Points', [
     'Points are awarded exclusively for confirmed bookings.',
-    '50 points per confirmed booking (Base) + 25 points per night of stay (Bonus).',
-    'Example: A 3-night booking earns 50 + (25 × 3) = 125 points.',
-    'Points are credited once a booking is marked as Confirmed (allow up to 24 hours).',
+    '50 points per confirmed booking.',
+    '5% of cumulative down payment amount (down payment × 0.05).',
+    'Average guest rating × 10.',
+    'Total = (confirmed bookings × 50) + (cumulative down payment × 0.05) + (average guest rating × 10).',
+    'Points are credited once a booking is completed (allow up to 24 hours after checkout).',
   ]),
   _TermSection('3. Point Validity', [
     'Points do not expire as long as the agent\'s account remains active.',

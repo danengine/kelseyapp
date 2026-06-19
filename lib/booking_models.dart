@@ -89,6 +89,10 @@ class BookingRecord {
     final checkOutRaw = json['check_out_date'] as String? ?? '';
     final guests = json['total_guests'] as int? ?? 1;
     final payment = json['payment'] as Map<String, dynamic>?;
+    final client = json['client'] as Map<String, dynamic>? ?? {};
+    final first = client['first_name'] as String? ?? '';
+    final last = client['last_name'] as String? ?? '';
+    final clientName = [first, last].where((p) => p.trim().isNotEmpty).join(' ').trim();
     final checkIn = DateTime.parse(checkInRaw);
     final checkOut = DateTime.parse(checkOutRaw);
     final nightCount = checkOut.difference(checkIn).inDays;
@@ -115,6 +119,7 @@ class BookingRecord {
       paymentMethod: payment?['payment_method'] as String?,
       paymentStatus: payment?['status'] as String? ?? payment?['payment_status'] as String?,
       nights: nightCount > 0 ? nightCount : 1,
+      clientName: clientName.isEmpty ? null : clientName,
     );
   }
 
